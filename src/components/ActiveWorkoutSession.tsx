@@ -29,6 +29,7 @@ export function ActiveWorkoutSession({
   onUpdateSession,
 }: ActiveWorkoutSessionProps) {
   const [restSeconds, setRestSeconds] = useState<number | null>(null);
+  const [transitionMessage, setTransitionMessage] = useState('Serie 1 pronta para registrar.');
   const currentWorkoutExercise = workout.exercises[session.currentExerciseIndex];
   const currentExercise = getExerciseById(currentWorkoutExercise.exerciseId);
   const exerciseLogs = getExerciseSetLogs(session, currentWorkoutExercise.exerciseId);
@@ -62,8 +63,18 @@ export function ActiveWorkoutSession({
     return null;
   }
 
+  const currentExerciseName = currentExercise.name;
+
+  function updateSession(nextSession: WorkoutSession, message?: string) {
+    onUpdateSession(nextSession);
+
+    if (message) {
+      setTransitionMessage(message);
+    }
+  }
+
   function updateSet(setId: string, update: Partial<WorkoutSetLog>) {
-    onUpdateSession({
+    updateSession({
       ...session,
       setLogs: session.setLogs.map((setLog) =>
         setLog.id === setId ? { ...setLog, ...update } : setLog,
@@ -72,15 +83,53 @@ export function ActiveWorkoutSession({
   }
 
   function completeCurrentSet() {
-    updateSet(currentSet.id, { completed: true });
+    const completedSession = {
+      ...session,
+      setLogs: session.setLogs.map((setLog) =>
+        setLog.id === currentSet.id ? { ...setLog, completed: true } : setLog,
+      ),
+    };
+
     setRestSeconds(currentWorkoutExercise.restSeconds);
+
+    if (session.currentSetIndex < exerciseLogs.length - 1) {
+      updateSession(
+        { ...completedSession, currentSetIndex: session.currentSetIndex + 1 },
+        `Serie ${session.currentSetIndex + 1} concluida. Proxima: serie ${session.currentSetIndex + 2}.`,
+      );
+      return;
+    }
+
+    if (session.currentExerciseIndex < workout.exercises.length - 1) {
+      const nextWorkoutExercise = workout.exercises[session.currentExerciseIndex + 1];
+      const nextExercise = getExerciseById(nextWorkoutExercise.exerciseId);
+
+      updateSession(
+        {
+          ...completedSession,
+          currentExerciseIndex: session.currentExerciseIndex + 1,
+          currentSetIndex: 0,
+        },
+        `${currentExerciseName} concluido. Proximo exercicio: ${nextExercise?.name ?? 'exercicio'}.`,
+      );
+      return;
+    }
+
+    onFinish({
+      ...completedSession,
+      finishedAt: new Date().toISOString(),
+      status: 'finished',
+    });
   }
 
   function goToPreviousSet() {
     setRestSeconds(null);
 
     if (session.currentSetIndex > 0) {
-      onUpdateSession({ ...session, currentSetIndex: session.currentSetIndex - 1 });
+      updateSession(
+        { ...session, currentSetIndex: session.currentSetIndex - 1 },
+        `Voltando para serie ${session.currentSetIndex}.`,
+      );
       return;
     }
 
@@ -89,11 +138,14 @@ export function ActiveWorkoutSession({
       const previousExercise = workout.exercises[previousExerciseIndex];
       const previousLogs = getExerciseSetLogs(session, previousExercise.exerciseId);
 
-      onUpdateSession({
-        ...session,
-        currentExerciseIndex: previousExerciseIndex,
-        currentSetIndex: Math.max(previousLogs.length - 1, 0),
-      });
+      updateSession(
+        {
+          ...session,
+          currentExerciseIndex: previousExerciseIndex,
+          currentSetIndex: Math.max(previousLogs.length - 1, 0),
+        },
+        `Voltando para ${getExerciseById(previousExercise.exerciseId)?.name ?? 'exercicio anterior'}.`,
+      );
     }
   }
 
@@ -101,16 +153,25 @@ export function ActiveWorkoutSession({
     setRestSeconds(null);
 
     if (session.currentSetIndex < exerciseLogs.length - 1) {
-      onUpdateSession({ ...session, currentSetIndex: session.currentSetIndex + 1 });
+      updateSession(
+        { ...session, currentSetIndex: session.currentSetIndex + 1 },
+        `Agora na serie ${session.currentSetIndex + 2}.`,
+      );
       return;
     }
 
     if (session.currentExerciseIndex < workout.exercises.length - 1) {
-      onUpdateSession({
-        ...session,
-        currentExerciseIndex: session.currentExerciseIndex + 1,
-        currentSetIndex: 0,
-      });
+      const nextWorkoutExercise = workout.exercises[session.currentExerciseIndex + 1];
+      const nextExercise = getExerciseById(nextWorkoutExercise.exerciseId);
+
+      updateSession(
+        {
+          ...session,
+          currentExerciseIndex: session.currentExerciseIndex + 1,
+          currentSetIndex: 0,
+        },
+        `Agora em ${nextExercise?.name ?? 'proximo exercicio'}, serie 1.`,
+      );
       return;
     }
 
@@ -135,6 +196,14 @@ export function ActiveWorkoutSession({
       <Text style={styles.progressText}>
         {completedSets}/{session.setLogs.length} series concluidas
       </Text>
+
+      <View style={styles.statusPanel}>
+        <Text style={styles.statusKicker}>Agora</Text>
+        <Text style={styles.statusTitle}>
+          {currentExerciseName} - serie {session.currentSetIndex + 1} de {exerciseLogs.length}
+        </Text>
+        <Text style={styles.statusText}>{transitionMessage}</Text>
+      </View>
 
       <View style={styles.exercisePanel}>
         {currentExercise ? <ExerciseMedia exercise={currentExercise} size="lg" /> : <ExerciseFallbackMedia />}
@@ -166,6 +235,41 @@ export function ActiveWorkoutSession({
         />
       </View>
 
+      <View style={styles.setTimeline}>
+        {exerciseLogs.map((setLog, index) => {
+          const isActive = index === session.currentSetIndex;
+
+          return (
+            <Pressable
+              key={setLog.id}
+              style={[
+                styles.setBubble,
+                setLog.completed && styles.completedSetBubble,
+                isActive && styles.activeSetBubble,
+              ]}
+              onPress={() =>
+                updateSession(
+                  { ...session, currentSetIndex: index },
+                  `Selecionada serie ${index + 1} de ${exerciseLogs.length}.`,
+                )
+              }
+              accessibilityRole="button"
+              accessibilityLabel={`Selecionar serie ${index + 1}`}
+            >
+              <Text
+                style={[
+                  styles.setBubbleText,
+                  setLog.completed && styles.completedSetBubbleText,
+                  isActive && styles.activeSetBubbleText,
+                ]}
+              >
+                {setLog.completed ? 'OK' : index + 1}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+
       {restSeconds !== null && (
         <View style={styles.restPanel}>
           <Timer size={19} color={colors.primary} />
@@ -186,7 +290,7 @@ export function ActiveWorkoutSession({
       >
         <Check size={20} color={colors.surface} />
         <Text style={styles.completeButtonText}>
-          {currentSet.completed ? 'Serie concluida' : 'Concluir serie'}
+          {currentSet.completed ? 'Concluida - avancar mesmo assim' : 'Concluir e avancar'}
         </Text>
       </Pressable>
 
@@ -196,7 +300,7 @@ export function ActiveWorkoutSession({
           <Text style={styles.secondaryButtonText}>Anterior</Text>
         </Pressable>
         <Pressable style={styles.secondaryButton} onPress={goToNextSet}>
-          <Text style={styles.secondaryButtonText}>Proximo</Text>
+          <Text style={styles.secondaryButtonText}>Pular</Text>
           <ChevronRight size={20} color={colors.primary} />
         </Pressable>
       </View>
@@ -290,6 +394,29 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
   },
+  statusPanel: {
+    backgroundColor: colors.primary,
+    borderRadius: radii.md,
+    padding: 16,
+  },
+  statusKicker: {
+    color: colors.yellowSoft,
+    fontSize: 12,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+  },
+  statusTitle: {
+    color: colors.surface,
+    fontSize: 20,
+    fontWeight: '800',
+    marginTop: 4,
+  },
+  statusText: {
+    color: colors.primarySoft,
+    fontSize: 13,
+    lineHeight: 18,
+    marginTop: 6,
+  },
   exercisePanel: {
     alignItems: 'center',
     backgroundColor: colors.surface,
@@ -320,6 +447,39 @@ const styles = StyleSheet.create({
   setPanel: {
     flexDirection: 'row',
     gap: 10,
+  },
+  setTimeline: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  setBubble: {
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    flex: 1,
+    minHeight: 42,
+    justifyContent: 'center',
+  },
+  activeSetBubble: {
+    backgroundColor: colors.secondary,
+    borderColor: colors.secondary,
+  },
+  completedSetBubble: {
+    backgroundColor: colors.primarySoft,
+    borderColor: colors.primarySoft,
+  },
+  setBubbleText: {
+    color: colors.primary,
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  activeSetBubbleText: {
+    color: colors.surface,
+  },
+  completedSetBubbleText: {
+    color: colors.primary,
   },
   stepper: {
     backgroundColor: colors.surface,
