@@ -1,17 +1,91 @@
-import { Apple, Plus, Utensils } from 'lucide-react-native';
-import { StyleSheet, Text, View } from 'react-native';
+import { Apple, Minus, Plus, Utensils } from 'lucide-react-native';
+import { useMemo, useState } from 'react';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { SectionTitle } from '../components/SectionTitle';
-import { dailyNutritionGoal, foods, mealsWithTotals, nutritionTotals } from '../data/nutrition';
+import { dailyNutritionGoal, foods, meals as initialMeals } from '../data/nutrition';
 import { colors, radii } from '../styles/theme';
-import { calculateMealItemNutrition } from '../utils/nutrition';
+import type { Food, Meal } from '../types';
+import {
+  calculateMealItemNutrition,
+  calculateMealTotals,
+  calculateNutritionTotals,
+} from '../utils/nutrition';
 
 export function DietScreen() {
+  const [meals, setMeals] = useState<Meal[]>(initialMeals);
+  const [selectedMealId, setSelectedMealId] = useState(initialMeals[0].id);
+
+  const mealsWithTotals = useMemo(
+    () =>
+      meals.map((meal) => ({
+        ...meal,
+        totals: calculateMealTotals(meal, foods),
+      })),
+    [meals],
+  );
+
+  const nutritionTotals = useMemo(() => calculateNutritionTotals(meals, foods), [meals]);
+
   const calorieProgress = Math.min(
     100,
     Math.round((nutritionTotals.calories / dailyNutritionGoal.calories) * 100),
   );
   const remainingCalories = dailyNutritionGoal.calories - nutritionTotals.calories;
+  const selectedMeal = meals.find((meal) => meal.id === selectedMealId) ?? meals[0];
+
+  function addFoodToSelectedMeal(food: Food) {
+    setMeals((currentMeals) =>
+      currentMeals.map((meal) => {
+        if (meal.id !== selectedMeal.id) {
+          return meal;
+        }
+
+        const existingItem = meal.items.find(
+          (item) => item.foodId === food.id && item.unit === food.defaultServing.unit,
+        );
+
+        if (existingItem) {
+          return {
+            ...meal,
+            items: meal.items.map((item) =>
+              item.id === existingItem.id ? { ...item, amount: item.amount + food.defaultServing.amount } : item,
+            ),
+          };
+        }
+
+        return {
+          ...meal,
+          items: [
+            ...meal.items,
+            {
+              id: `${meal.id}-${food.id}-${Date.now()}`,
+              foodId: food.id,
+              unit: food.defaultServing.unit,
+              amount: food.defaultServing.amount,
+            },
+          ],
+        };
+      }),
+    );
+  }
+
+  function changeMealItemAmount(mealId: string, itemId: string, delta: number) {
+    setMeals((currentMeals) =>
+      currentMeals.map((meal) => {
+        if (meal.id !== mealId) {
+          return meal;
+        }
+
+        return {
+          ...meal,
+          items: meal.items
+            .map((item) => (item.id === itemId ? { ...item, amount: item.amount + delta } : item))
+            .filter((item) => item.amount > 0),
+        };
+      }),
+    );
+  }
 
   return (
     <>
@@ -53,6 +127,24 @@ export function DietScreen() {
             <Text style={styles.loadText}>{meal.totals.calories}</Text>
           </View>
 
+          <View style={styles.mealActions}>
+            <Pressable
+              style={[styles.selectMealButton, selectedMeal.id === meal.id && styles.activeSelectMealButton]}
+              onPress={() => setSelectedMealId(meal.id)}
+              accessibilityRole="button"
+              accessibilityLabel={`Selecionar ${meal.name}`}
+            >
+              <Text
+                style={[
+                  styles.selectMealButtonText,
+                  selectedMeal.id === meal.id && styles.activeSelectMealButtonText,
+                ]}
+              >
+                {selectedMeal.id === meal.id ? 'Selecionada' : 'Adicionar aqui'}
+              </Text>
+            </Pressable>
+          </View>
+
           <View style={styles.foodRows}>
             {meal.items.map((item) => {
               const itemNutrition = calculateMealItemNutrition(item, foods);
@@ -70,6 +162,22 @@ export function DietScreen() {
                       {itemNutrition.label} - {itemNutrition.grams}g calculados
                     </Text>
                   </View>
+                  <View style={styles.itemControls}>
+                    <Pressable
+                      style={styles.quantityButton}
+                      onPress={() => changeMealItemAmount(meal.id, item.id, -1)}
+                      accessibilityLabel={`Diminuir ${itemNutrition.food.name}`}
+                    >
+                      <Minus size={14} color={colors.primary} />
+                    </Pressable>
+                    <Pressable
+                      style={styles.quantityButton}
+                      onPress={() => changeMealItemAmount(meal.id, item.id, 1)}
+                      accessibilityLabel={`Aumentar ${itemNutrition.food.name}`}
+                    >
+                      <Plus size={14} color={colors.primary} />
+                    </Pressable>
+                  </View>
                   <Text style={styles.foodCalories}>{itemNutrition.totals.calories} kcal</Text>
                 </View>
               );
@@ -79,6 +187,7 @@ export function DietScreen() {
       ))}
 
       <SectionTitle title="Base de alimentos" />
+      <Text style={styles.libraryHint}>Adicionando em: {selectedMeal.name}</Text>
       <View style={styles.foodLibrary}>
         {foods.map((food) => (
           <View key={food.id} style={styles.libraryCard}>
@@ -91,9 +200,14 @@ export function DietScreen() {
                 {food.caloriesPer100g} kcal/100g - {food.defaultServing.label}
               </Text>
             </View>
-            <View style={styles.addButton}>
+            <Pressable
+              style={styles.addButton}
+              onPress={() => addFoodToSelectedMeal(food)}
+              accessibilityRole="button"
+              accessibilityLabel={`Adicionar ${food.name}`}
+            >
               <Plus size={18} color={colors.primary} />
-            </View>
+            </Pressable>
           </View>
         ))}
       </View>
@@ -218,6 +332,27 @@ const styles = StyleSheet.create({
     marginTop: 12,
     paddingTop: 12,
   },
+  mealActions: {
+    alignItems: 'flex-start',
+    marginTop: 12,
+  },
+  selectMealButton: {
+    backgroundColor: colors.primarySoft,
+    borderRadius: radii.md,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  activeSelectMealButton: {
+    backgroundColor: colors.primary,
+  },
+  selectMealButtonText: {
+    color: colors.primary,
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  activeSelectMealButtonText: {
+    color: colors.surface,
+  },
   foodRow: {
     alignItems: 'center',
     flexDirection: 'row',
@@ -246,9 +381,30 @@ const styles = StyleSheet.create({
     color: colors.primary,
     fontSize: 12,
     fontWeight: '800',
+    minWidth: 54,
+    textAlign: 'right',
+  },
+  itemControls: {
+    flexDirection: 'row',
+    gap: 5,
+  },
+  quantityButton: {
+    alignItems: 'center',
+    backgroundColor: colors.primarySoft,
+    borderRadius: radii.sm,
+    height: 28,
+    justifyContent: 'center',
+    width: 28,
   },
   foodLibrary: {
     gap: 10,
+  },
+  libraryHint: {
+    color: colors.primaryMid,
+    fontSize: 13,
+    fontWeight: '800',
+    marginBottom: 10,
+    marginTop: -4,
   },
   libraryCard: {
     alignItems: 'center',

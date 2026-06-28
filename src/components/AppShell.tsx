@@ -1,6 +1,7 @@
 import { StatusBar } from 'expo-status-bar';
 import { Plus } from 'lucide-react-native';
 import type { ReactNode } from 'react';
+import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { tabs } from '../data/tabs';
@@ -14,7 +15,9 @@ type AppShellProps = {
 };
 
 export function AppShell({ activeTab, children, onTabChange }: AppShellProps) {
+  const [showQuickActions, setShowQuickActions] = useState(false);
   const activeTitle = tabs.find((tab) => tab.key === activeTab)?.label ?? 'Diaita';
+  const actions = getQuickActions(activeTab);
 
   return (
     <View style={styles.app}>
@@ -25,12 +28,33 @@ export function AppShell({ activeTab, children, onTabChange }: AppShellProps) {
             <Text style={styles.brand}>Diaita</Text>
             <Text style={styles.headerSubtitle}>{activeTitle}</Text>
           </View>
-          <Pressable style={styles.iconButton} accessibilityLabel="Adicionar">
+          <Pressable
+            style={[styles.iconButton, showQuickActions && styles.activeIconButton]}
+            onPress={() => setShowQuickActions((current) => !current)}
+            accessibilityRole="button"
+            accessibilityLabel="Adicionar"
+          >
             <Plus size={22} color={colors.primary} strokeWidth={2.4} />
           </Pressable>
         </View>
 
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+          {showQuickActions && (
+            <View style={styles.quickActions}>
+              {actions.map((action) => (
+                <Pressable
+                  key={action.title}
+                  style={styles.quickAction}
+                  onPress={() => setShowQuickActions(false)}
+                  accessibilityRole="button"
+                  accessibilityLabel={action.title}
+                >
+                  <Text style={styles.quickActionTitle}>{action.title}</Text>
+                  <Text style={styles.quickActionText}>{action.description}</Text>
+                </Pressable>
+              ))}
+            </View>
+          )}
           {children}
         </ScrollView>
 
@@ -62,6 +86,34 @@ export function AppShell({ activeTab, children, onTabChange }: AppShellProps) {
       </View>
     </View>
   );
+}
+
+function getQuickActions(activeTab: TabKey) {
+  if (activeTab === 'training') {
+    return [
+      { title: 'Adicionar exercicio', description: 'Proximo passo: escolher da biblioteca.' },
+      { title: 'Criar treino', description: 'Montar uma nova planilha A/B/C.' },
+    ];
+  }
+
+  if (activeTab === 'diet') {
+    return [
+      { title: 'Adicionar alimento', description: 'Use o + da base de alimentos abaixo.' },
+      { title: 'Criar alimento', description: 'Proximo passo: cadastrar alimento manual.' },
+    ];
+  }
+
+  if (activeTab === 'progress') {
+    return [
+      { title: 'Registrar peso', description: 'Adicionar peso e medidas do dia.' },
+      { title: 'Adicionar foto', description: 'Salvar foto de evolucao.' },
+    ];
+  }
+
+  return [
+    { title: 'Registrar treino', description: 'Abrir modo treino pela aba Treino.' },
+    { title: 'Registrar refeicao', description: 'Adicionar alimento pela aba Dieta.' },
+  ];
 }
 
 const styles = StyleSheet.create({
@@ -98,9 +150,32 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     width: 44,
   },
+  activeIconButton: {
+    backgroundColor: colors.yellowSoft,
+  },
   content: {
     paddingBottom: 112,
     paddingHorizontal: 20,
+  },
+  quickActions: {
+    gap: 10,
+    marginBottom: 14,
+  },
+  quickAction: {
+    backgroundColor: colors.surface,
+    borderRadius: radii.md,
+    padding: 14,
+  },
+  quickActionTitle: {
+    color: colors.primary,
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  quickActionText: {
+    color: colors.muted,
+    fontSize: 13,
+    lineHeight: 18,
+    marginTop: 3,
   },
   tabBar: {
     alignItems: 'center',
