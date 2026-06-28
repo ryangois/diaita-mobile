@@ -1,4 +1,4 @@
-import { CheckCircle2, Clock3, Dumbbell, Flame, Minus, Play, Plus, Target, Trash2 } from 'lucide-react-native';
+import { CheckCircle2, Clock3, Dumbbell, Flame, Minus, Pencil, Play, Plus, Target, Trash2 } from 'lucide-react-native';
 import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -36,6 +36,7 @@ export function TrainingScreen({
   const [activeWorkoutId, setActiveWorkoutId] = useState(workoutDays[0].id);
   const [activeSession, setActiveSession] = useState<WorkoutSession | null>(null);
   const [finishedSession, setFinishedSession] = useState<WorkoutSession | null>(null);
+  const [isEditingPlan, setIsEditingPlan] = useState(false);
 
   const activeWorkout = useMemo(() => {
     return workoutDays.find((workout) => workout.id === activeWorkoutId) ?? workoutDays[0];
@@ -182,6 +183,18 @@ export function TrainingScreen({
         </View>
       )}
 
+      <Pressable
+        style={[styles.editPlanButton, isEditingPlan && styles.activeEditPlanButton]}
+        onPress={() => setIsEditingPlan((current) => !current)}
+        accessibilityRole="button"
+        accessibilityLabel="Editar planilha"
+      >
+        <Pencil size={18} color={isEditingPlan ? colors.surface : colors.primary} />
+        <Text style={[styles.editPlanButtonText, isEditingPlan && styles.activeEditPlanButtonText]}>
+          {isEditingPlan ? 'Concluir edicao da planilha' : 'Editar planilha'}
+        </Text>
+      </Pressable>
+
       <SectionTitle title="Gasto calorico" />
       <View style={styles.caloriePanel}>
         <View>
@@ -231,20 +244,24 @@ export function TrainingScreen({
                 {exercise.muscleGroup} - {plannedExercise.restSeconds}s descanso
               </Text>
             </View>
-            <View style={styles.planControls}>
+            {isEditingPlan ? (
+              <View style={styles.planControls}>
+                <Text style={styles.loadText}>{plannedExercise.targetLoadKg} kg</Text>
+                <View style={styles.planControlRow}>
+                  <IconButton icon={Minus} onPress={() => updateExercisePlan(exercise.id, 'sets', -1)} />
+                  <Text style={styles.planControlText}>{plannedExercise.sets}s</Text>
+                  <IconButton icon={Plus} onPress={() => updateExercisePlan(exercise.id, 'sets', 1)} />
+                </View>
+                <View style={styles.planControlRow}>
+                  <IconButton icon={Minus} onPress={() => updateExercisePlan(exercise.id, 'targetLoadKg', -2.5)} />
+                  <Text style={styles.planControlText}>kg</Text>
+                  <IconButton icon={Plus} onPress={() => updateExercisePlan(exercise.id, 'targetLoadKg', 2.5)} />
+                </View>
+                <IconButton icon={Trash2} onPress={() => removeExerciseFromWorkout(exercise.id)} />
+              </View>
+            ) : (
               <Text style={styles.loadText}>{plannedExercise.targetLoadKg} kg</Text>
-              <View style={styles.planControlRow}>
-                <IconButton icon={Minus} onPress={() => updateExercisePlan(exercise.id, 'sets', -1)} />
-                <Text style={styles.planControlText}>{plannedExercise.sets}s</Text>
-                <IconButton icon={Plus} onPress={() => updateExercisePlan(exercise.id, 'sets', 1)} />
-              </View>
-              <View style={styles.planControlRow}>
-                <IconButton icon={Minus} onPress={() => updateExercisePlan(exercise.id, 'targetLoadKg', -2.5)} />
-                <Text style={styles.planControlText}>kg</Text>
-                <IconButton icon={Plus} onPress={() => updateExercisePlan(exercise.id, 'targetLoadKg', 2.5)} />
-              </View>
-              <IconButton icon={Trash2} onPress={() => removeExerciseFromWorkout(exercise.id)} />
-            </View>
+            )}
           </View>
         );
       })}
@@ -261,14 +278,16 @@ export function TrainingScreen({
               </Text>
               <Text style={styles.executionCue}>{exercise.executionCue}</Text>
             </View>
-            <Pressable
-              style={styles.addExerciseButton}
-              onPress={() => addExerciseToWorkout(exercise.id)}
-              accessibilityRole="button"
-              accessibilityLabel={`Adicionar ${exercise.name}`}
-            >
-              <Plus size={18} color={colors.primary} />
-            </Pressable>
+            {isEditingPlan && (
+              <Pressable
+                style={styles.addExerciseButton}
+                onPress={() => addExerciseToWorkout(exercise.id)}
+                accessibilityRole="button"
+                accessibilityLabel={`Adicionar ${exercise.name}`}
+              >
+                <Plus size={18} color={colors.primary} />
+              </Pressable>
+            )}
           </View>
         ))}
       </View>
@@ -380,6 +399,27 @@ const styles = StyleSheet.create({
   },
   finishedBody: {
     flex: 1,
+  },
+  editPlanButton: {
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderRadius: radii.md,
+    flexDirection: 'row',
+    gap: 8,
+    justifyContent: 'center',
+    marginTop: 12,
+    minHeight: 48,
+  },
+  activeEditPlanButton: {
+    backgroundColor: colors.secondary,
+  },
+  editPlanButtonText: {
+    color: colors.primary,
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  activeEditPlanButtonText: {
+    color: colors.surface,
   },
   caloriePanel: {
     backgroundColor: colors.surface,

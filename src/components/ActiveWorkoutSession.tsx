@@ -1,5 +1,5 @@
 import { Check, ChevronLeft, ChevronRight, Minus, Plus, Timer, X } from 'lucide-react-native';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { getExerciseById } from '../data/training';
@@ -45,6 +45,18 @@ export function ActiveWorkoutSession({
     }),
     [session],
   );
+
+  useEffect(() => {
+    if (restSeconds === null || restSeconds <= 0) {
+      return;
+    }
+
+    const timeout = setTimeout(() => {
+      setRestSeconds((current) => (current === null ? null : Math.max(0, current - 1)));
+    }, 1000);
+
+    return () => clearTimeout(timeout);
+  }, [restSeconds]);
 
   if (!currentExercise || !currentSet) {
     return null;
@@ -157,7 +169,12 @@ export function ActiveWorkoutSession({
       {restSeconds !== null && (
         <View style={styles.restPanel}>
           <Timer size={19} color={colors.primary} />
-          <Text style={styles.restText}>Descanso sugerido: {restSeconds}s</Text>
+          <Text style={styles.restText}>
+            {restSeconds > 0 ? `Descanso: ${restSeconds}s` : 'Descanso concluido'}
+          </Text>
+          <Pressable style={styles.skipRestButton} onPress={() => setRestSeconds(null)}>
+            <Text style={styles.skipRestButtonText}>Pular</Text>
+          </Pressable>
         </View>
       )}
 
@@ -345,7 +362,19 @@ const styles = StyleSheet.create({
   },
   restText: {
     color: colors.primary,
+    flex: 1,
     fontSize: 13,
+    fontWeight: '800',
+  },
+  skipRestButton: {
+    backgroundColor: colors.surface,
+    borderRadius: radii.sm,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  skipRestButtonText: {
+    color: colors.primary,
+    fontSize: 12,
     fontWeight: '800',
   },
   completeButton: {

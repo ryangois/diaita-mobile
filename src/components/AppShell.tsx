@@ -1,8 +1,8 @@
 import { StatusBar } from 'expo-status-bar';
-import { Plus } from 'lucide-react-native';
+import { Dumbbell, LineChart, Plus, Utensils, X } from 'lucide-react-native';
 import type { ReactNode } from 'react';
 import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { tabs } from '../data/tabs';
 import { colors, radii } from '../styles/theme';
@@ -39,24 +39,50 @@ export function AppShell({ activeTab, children, onTabChange }: AppShellProps) {
         </View>
 
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-          {showQuickActions && (
-            <View style={styles.quickActions}>
-              {actions.map((action) => (
-                <Pressable
-                  key={action.title}
-                  style={styles.quickAction}
-                  onPress={() => setShowQuickActions(false)}
-                  accessibilityRole="button"
-                  accessibilityLabel={action.title}
-                >
-                  <Text style={styles.quickActionTitle}>{action.title}</Text>
-                  <Text style={styles.quickActionText}>{action.description}</Text>
-                </Pressable>
-              ))}
-            </View>
-          )}
           {children}
         </ScrollView>
+
+        <Modal
+          animationType="fade"
+          transparent
+          visible={showQuickActions}
+          onRequestClose={() => setShowQuickActions(false)}
+        >
+          <Pressable style={styles.modalBackdrop} onPress={() => setShowQuickActions(false)}>
+            <Pressable style={styles.actionSheet}>
+              <View style={styles.sheetHeader}>
+                <View>
+                  <Text style={styles.sheetKicker}>Acoes rapidas</Text>
+                  <Text style={styles.sheetTitle}>{activeTitle}</Text>
+                </View>
+                <Pressable style={styles.sheetCloseButton} onPress={() => setShowQuickActions(false)}>
+                  <X size={20} color={colors.primary} />
+                </Pressable>
+              </View>
+              {actions.map((action) => {
+                const Icon = action.icon;
+
+                return (
+                  <Pressable
+                    key={action.title}
+                    style={styles.quickAction}
+                    onPress={() => setShowQuickActions(false)}
+                    accessibilityRole="button"
+                    accessibilityLabel={action.title}
+                  >
+                    <View style={styles.quickActionIcon}>
+                      <Icon size={20} color={colors.primary} />
+                    </View>
+                    <View style={styles.quickActionBody}>
+                      <Text style={styles.quickActionTitle}>{action.title}</Text>
+                      <Text style={styles.quickActionText}>{action.description}</Text>
+                    </View>
+                  </Pressable>
+                );
+              })}
+            </Pressable>
+          </Pressable>
+        </Modal>
 
         <View style={styles.tabBar}>
           {tabs.map((tab) => {
@@ -91,28 +117,28 @@ export function AppShell({ activeTab, children, onTabChange }: AppShellProps) {
 function getQuickActions(activeTab: TabKey) {
   if (activeTab === 'training') {
     return [
-      { title: 'Adicionar exercicio', description: 'Proximo passo: escolher da biblioteca.' },
-      { title: 'Criar treino', description: 'Montar uma nova planilha A/B/C.' },
+      { title: 'Adicionar exercicio', description: 'Use a biblioteca no fim da tela Treino.', icon: Dumbbell },
+      { title: 'Criar treino', description: 'Montar uma nova planilha A/B/C.', icon: Plus },
     ];
   }
 
   if (activeTab === 'diet') {
     return [
-      { title: 'Adicionar alimento', description: 'Use o + da base de alimentos abaixo.' },
-      { title: 'Criar alimento', description: 'Proximo passo: cadastrar alimento manual.' },
+      { title: 'Adicionar alimento', description: 'Escolha a refeicao e toque no + do alimento.', icon: Utensils },
+      { title: 'Criar alimento', description: 'Abra o formulario manual na aba Dieta.', icon: Plus },
     ];
   }
 
   if (activeTab === 'progress') {
     return [
-      { title: 'Registrar peso', description: 'Adicionar peso e medidas do dia.' },
-      { title: 'Adicionar foto', description: 'Salvar foto de evolucao.' },
+      { title: 'Registrar peso', description: 'Adicionar peso e medidas do dia.', icon: LineChart },
+      { title: 'Adicionar foto', description: 'Salvar foto de evolucao.', icon: Plus },
     ];
   }
 
   return [
-    { title: 'Registrar treino', description: 'Abrir modo treino pela aba Treino.' },
-    { title: 'Registrar refeicao', description: 'Adicionar alimento pela aba Dieta.' },
+    { title: 'Registrar treino', description: 'Abrir modo treino pela aba Treino.', icon: Dumbbell },
+    { title: 'Registrar refeicao', description: 'Adicionar alimento pela aba Dieta.', icon: Utensils },
   ];
 }
 
@@ -157,14 +183,62 @@ const styles = StyleSheet.create({
     paddingBottom: 112,
     paddingHorizontal: 20,
   },
-  quickActions: {
+  modalBackdrop: {
+    backgroundColor: 'rgba(22, 48, 43, 0.32)',
+    flex: 1,
+    justifyContent: 'flex-end',
+    padding: 14,
+  },
+  actionSheet: {
+    backgroundColor: colors.background,
+    borderRadius: radii.md,
     gap: 10,
-    marginBottom: 14,
+    padding: 14,
+  },
+  sheetHeader: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 2,
+  },
+  sheetKicker: {
+    color: colors.primaryMid,
+    fontSize: 12,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+  },
+  sheetTitle: {
+    color: colors.primary,
+    fontSize: 22,
+    fontWeight: '800',
+    marginTop: 2,
+  },
+  sheetCloseButton: {
+    alignItems: 'center',
+    backgroundColor: colors.primarySoft,
+    borderRadius: radii.md,
+    height: 40,
+    justifyContent: 'center',
+    width: 40,
   },
   quickAction: {
+    alignItems: 'center',
     backgroundColor: colors.surface,
     borderRadius: radii.md,
+    flexDirection: 'row',
+    gap: 12,
     padding: 14,
+  },
+  quickActionIcon: {
+    alignItems: 'center',
+    backgroundColor: colors.primarySoft,
+    borderRadius: radii.md,
+    height: 42,
+    justifyContent: 'center',
+    width: 42,
+  },
+  quickActionBody: {
+    flex: 1,
   },
   quickActionTitle: {
     color: colors.primary,

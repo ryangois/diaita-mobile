@@ -1,6 +1,6 @@
-import { Apple, Minus, Plus, Utensils } from 'lucide-react-native';
+import { Apple, Check, ChevronDown, ChevronUp, Minus, Plus, Search, Utensils } from 'lucide-react-native';
 import { useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { SectionTitle } from '../components/SectionTitle';
 import { dailyNutritionGoal } from '../data/nutrition';
@@ -22,6 +22,9 @@ type DietScreenProps = {
 
 export function DietScreen({ foods, isLoaded, meals, onFoodsChange, onMealsChange }: DietScreenProps) {
   const [selectedMealId, setSelectedMealId] = useState(meals[0]?.id ?? 'breakfast');
+  const [foodSearch, setFoodSearch] = useState('');
+  const [showManualFoodForm, setShowManualFoodForm] = useState(false);
+  const [lastAction, setLastAction] = useState('Dados sincronizados localmente.');
   const [draftFood, setDraftFood] = useState({
     name: '',
     caloriesPer100g: '100',
@@ -47,6 +50,15 @@ export function DietScreen({ foods, isLoaded, meals, onFoodsChange, onMealsChang
   );
   const remainingCalories = dailyNutritionGoal.calories - nutritionTotals.calories;
   const selectedMeal = meals.find((meal) => meal.id === selectedMealId) ?? meals[0];
+  const filteredFoods = foods.filter((food) => {
+    const search = foodSearch.trim().toLowerCase();
+
+    if (!search) {
+      return true;
+    }
+
+    return food.name.toLowerCase().includes(search) || food.category.toLowerCase().includes(search);
+  });
 
   function addFoodToSelectedMeal(food: Food) {
     onMealsChange(
@@ -82,6 +94,7 @@ export function DietScreen({ foods, isLoaded, meals, onFoodsChange, onMealsChang
         };
       }),
     );
+    setLastAction(`${food.name} adicionado em ${selectedMeal.name}.`);
   }
 
   function changeMealItemAmount(mealId: string, itemId: string, delta: number) {
@@ -99,6 +112,7 @@ export function DietScreen({ foods, isLoaded, meals, onFoodsChange, onMealsChang
         };
       }),
     );
+    setLastAction('Quantidade atualizada.');
   }
 
   function createManualFood() {
@@ -126,6 +140,8 @@ export function DietScreen({ foods, isLoaded, meals, onFoodsChange, onMealsChang
 
     onFoodsChange([...foods, newFood]);
     setDraftFood((current) => ({ ...current, name: '' }));
+    setShowManualFoodForm(false);
+    setLastAction(`${newFood.name} criado na base de alimentos.`);
   }
 
   return (
@@ -139,11 +155,33 @@ export function DietScreen({ foods, isLoaded, meals, onFoodsChange, onMealsChang
           <View style={[styles.progressFill, { width: `${calorieProgress}%` }]} />
         </View>
         <Text style={styles.panelText}>
-          {isLoaded ? 'Dados salvos localmente neste aparelho.' : 'Carregando dados locais...'}
+          {isLoaded ? lastAction : 'Carregando dados locais...'}
           {' '}
           {remainingCalories > 0 ? `Faltam ${remainingCalories} kcal.` : 'Meta concluida hoje.'}
         </Text>
       </View>
+
+      <SectionTitle title="Refeicao alvo" />
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.mealChips}>
+        {meals.map((meal) => {
+          const isSelected = meal.id === selectedMeal.id;
+
+          return (
+            <Pressable
+              key={meal.id}
+              style={[styles.mealChip, isSelected && styles.activeMealChip]}
+              onPress={() => setSelectedMealId(meal.id)}
+              accessibilityRole="button"
+              accessibilityLabel={`Selecionar ${meal.name}`}
+            >
+              {isSelected && <Check size={15} color={colors.surface} />}
+              <Text style={[styles.mealChipText, isSelected && styles.activeMealChipText]}>
+                {meal.name}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </ScrollView>
 
       <SectionTitle title="Macros" />
       <View style={styles.macroGrid}>
@@ -166,24 +204,6 @@ export function DietScreen({ foods, isLoaded, meals, onFoodsChange, onMealsChang
               </Text>
             </View>
             <Text style={styles.loadText}>{meal.totals.calories}</Text>
-          </View>
-
-          <View style={styles.mealActions}>
-            <Pressable
-              style={[styles.selectMealButton, selectedMeal.id === meal.id && styles.activeSelectMealButton]}
-              onPress={() => setSelectedMealId(meal.id)}
-              accessibilityRole="button"
-              accessibilityLabel={`Selecionar ${meal.name}`}
-            >
-              <Text
-                style={[
-                  styles.selectMealButtonText,
-                  selectedMeal.id === meal.id && styles.activeSelectMealButtonText,
-                ]}
-              >
-                {selectedMeal.id === meal.id ? 'Selecionada' : 'Adicionar aqui'}
-              </Text>
-            </Pressable>
           </View>
 
           <View style={styles.foodRows}>
@@ -229,48 +249,70 @@ export function DietScreen({ foods, isLoaded, meals, onFoodsChange, onMealsChang
 
       <SectionTitle title="Base de alimentos" />
       <Text style={styles.libraryHint}>Adicionando em: {selectedMeal.name}</Text>
-      <View style={styles.manualFoodPanel}>
-        <Text style={styles.manualFoodTitle}>Criar alimento manual</Text>
+      <View style={styles.searchBox}>
+        <Search size={18} color={colors.primaryMid} />
         <TextInput
-          style={styles.textInput}
-          placeholder="Nome do alimento"
+          style={styles.searchInput}
+          placeholder="Buscar alimento ou categoria"
           placeholderTextColor={colors.muted}
-          value={draftFood.name}
-          onChangeText={(name) => setDraftFood((current) => ({ ...current, name }))}
+          value={foodSearch}
+          onChangeText={setFoodSearch}
         />
-        <View style={styles.inputGrid}>
-          <MacroInput
-            label="kcal"
-            value={draftFood.caloriesPer100g}
-            onChangeText={(caloriesPer100g) =>
-              setDraftFood((current) => ({ ...current, caloriesPer100g }))
-            }
-          />
-          <MacroInput
-            label="prot"
-            value={draftFood.proteinPer100g}
-            onChangeText={(proteinPer100g) =>
-              setDraftFood((current) => ({ ...current, proteinPer100g }))
-            }
-          />
-          <MacroInput
-            label="carb"
-            value={draftFood.carbsPer100g}
-            onChangeText={(carbsPer100g) => setDraftFood((current) => ({ ...current, carbsPer100g }))}
-          />
-          <MacroInput
-            label="gord"
-            value={draftFood.fatPer100g}
-            onChangeText={(fatPer100g) => setDraftFood((current) => ({ ...current, fatPer100g }))}
-          />
-        </View>
-        <Pressable style={styles.createFoodButton} onPress={createManualFood}>
-          <Plus size={18} color={colors.surface} />
-          <Text style={styles.createFoodButtonText}>Salvar alimento</Text>
-        </Pressable>
       </View>
+      <Pressable
+        style={styles.manualFoodToggle}
+        onPress={() => setShowManualFoodForm((current) => !current)}
+      >
+        <Text style={styles.manualFoodToggleText}>Criar alimento manual</Text>
+        {showManualFoodForm ? (
+          <ChevronUp size={19} color={colors.primary} />
+        ) : (
+          <ChevronDown size={19} color={colors.primary} />
+        )}
+      </Pressable>
+      {showManualFoodForm && (
+        <View style={styles.manualFoodPanel}>
+          <TextInput
+            style={styles.textInput}
+            placeholder="Nome do alimento"
+            placeholderTextColor={colors.muted}
+            value={draftFood.name}
+            onChangeText={(name) => setDraftFood((current) => ({ ...current, name }))}
+          />
+          <View style={styles.inputGrid}>
+            <MacroInput
+              label="kcal"
+              value={draftFood.caloriesPer100g}
+              onChangeText={(caloriesPer100g) =>
+                setDraftFood((current) => ({ ...current, caloriesPer100g }))
+              }
+            />
+            <MacroInput
+              label="prot"
+              value={draftFood.proteinPer100g}
+              onChangeText={(proteinPer100g) =>
+                setDraftFood((current) => ({ ...current, proteinPer100g }))
+              }
+            />
+            <MacroInput
+              label="carb"
+              value={draftFood.carbsPer100g}
+              onChangeText={(carbsPer100g) => setDraftFood((current) => ({ ...current, carbsPer100g }))}
+            />
+            <MacroInput
+              label="gord"
+              value={draftFood.fatPer100g}
+              onChangeText={(fatPer100g) => setDraftFood((current) => ({ ...current, fatPer100g }))}
+            />
+          </View>
+          <Pressable style={styles.createFoodButton} onPress={createManualFood}>
+            <Plus size={18} color={colors.surface} />
+            <Text style={styles.createFoodButtonText}>Salvar alimento</Text>
+          </Pressable>
+        </View>
+      )}
       <View style={styles.foodLibrary}>
-        {foods.map((food) => (
+        {filteredFoods.map((food) => (
           <View key={food.id} style={styles.libraryCard}>
             <View style={styles.libraryIcon}>
               <Apple size={21} color={colors.primary} />
@@ -278,7 +320,7 @@ export function DietScreen({ foods, isLoaded, meals, onFoodsChange, onMealsChang
             <View style={styles.listBody}>
               <Text style={styles.cardTitle}>{food.name}</Text>
               <Text style={styles.cardText}>
-                {food.caloriesPer100g} kcal/100g - {food.defaultServing.label}
+                {food.category} - {food.caloriesPer100g} kcal/100g - {food.defaultServing.label}
               </Text>
             </View>
             <Pressable
@@ -291,6 +333,12 @@ export function DietScreen({ foods, isLoaded, meals, onFoodsChange, onMealsChang
             </Pressable>
           </View>
         ))}
+        {filteredFoods.length === 0 && (
+          <View style={styles.emptySearch}>
+            <Text style={styles.cardTitle}>Nenhum alimento encontrado</Text>
+            <Text style={styles.cardText}>Crie um alimento manual ou limpe a busca.</Text>
+          </View>
+        )}
       </View>
     </>
   );
@@ -373,6 +421,30 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 8,
   },
+  mealChips: {
+    gap: 8,
+    paddingRight: 20,
+  },
+  mealChip: {
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderRadius: radii.md,
+    flexDirection: 'row',
+    gap: 6,
+    minHeight: 40,
+    paddingHorizontal: 12,
+  },
+  activeMealChip: {
+    backgroundColor: colors.primary,
+  },
+  mealChipText: {
+    color: colors.primary,
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  activeMealChipText: {
+    color: colors.surface,
+  },
   macroCard: {
     backgroundColor: colors.surface,
     borderRadius: radii.md,
@@ -440,27 +512,6 @@ const styles = StyleSheet.create({
     marginTop: 12,
     paddingTop: 12,
   },
-  mealActions: {
-    alignItems: 'flex-start',
-    marginTop: 12,
-  },
-  selectMealButton: {
-    backgroundColor: colors.primarySoft,
-    borderRadius: radii.md,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-  },
-  activeSelectMealButton: {
-    backgroundColor: colors.primary,
-  },
-  selectMealButtonText: {
-    color: colors.primary,
-    fontSize: 12,
-    fontWeight: '800',
-  },
-  activeSelectMealButtonText: {
-    color: colors.surface,
-  },
   foodRow: {
     alignItems: 'center',
     flexDirection: 'row',
@@ -520,11 +571,35 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     padding: 12,
   },
-  manualFoodTitle: {
+  manualFoodToggle: {
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderRadius: radii.md,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+    minHeight: 46,
+    paddingHorizontal: 12,
+  },
+  manualFoodToggleText: {
     color: colors.primary,
     fontSize: 15,
     fontWeight: '800',
+  },
+  searchBox: {
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderRadius: radii.md,
+    flexDirection: 'row',
+    gap: 8,
     marginBottom: 10,
+    minHeight: 46,
+    paddingHorizontal: 12,
+  },
+  searchInput: {
+    color: colors.text,
+    flex: 1,
+    fontSize: 14,
   },
   textInput: {
     backgroundColor: colors.background,
@@ -598,5 +673,10 @@ const styles = StyleSheet.create({
     height: 34,
     justifyContent: 'center',
     width: 34,
+  },
+  emptySearch: {
+    backgroundColor: colors.surface,
+    borderRadius: radii.md,
+    padding: 14,
   },
 });
