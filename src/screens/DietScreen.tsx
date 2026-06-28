@@ -1,9 +1,10 @@
-import { Utensils } from 'lucide-react-native';
+import { Apple, Plus, Utensils } from 'lucide-react-native';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { SectionTitle } from '../components/SectionTitle';
-import { dailyNutritionGoal, meals, nutritionTotals } from '../data/nutrition';
+import { dailyNutritionGoal, foods, mealsWithTotals, nutritionTotals } from '../data/nutrition';
 import { colors, radii } from '../styles/theme';
+import { calculateMealItemNutrition } from '../utils/nutrition';
 
 export function DietScreen() {
   const calorieProgress = Math.min(
@@ -37,20 +38,65 @@ export function DietScreen() {
       </View>
 
       <SectionTitle title="Refeicoes" />
-      {meals.map((meal) => (
-        <View key={meal.id} style={styles.listCard}>
-          <View style={styles.foodIcon}>
-            <Utensils size={22} color={colors.secondary} />
+      {mealsWithTotals.map((meal) => (
+        <View key={meal.id} style={styles.mealCard}>
+          <View style={styles.mealHeader}>
+            <View style={styles.foodIcon}>
+              <Utensils size={22} color={colors.secondary} />
+            </View>
+            <View style={styles.listBody}>
+              <Text style={styles.cardTitle}>{meal.name}</Text>
+              <Text style={styles.cardText}>
+                {meal.totals.protein}g prot - {meal.totals.carbs}g carb - {meal.totals.fat}g gord
+              </Text>
+            </View>
+            <Text style={styles.loadText}>{meal.totals.calories}</Text>
           </View>
-          <View style={styles.listBody}>
-            <Text style={styles.cardTitle}>{meal.name}</Text>
-            <Text style={styles.cardText}>
-              {meal.protein}g prot - {meal.carbs}g carb - {meal.fat}g gord
-            </Text>
+
+          <View style={styles.foodRows}>
+            {meal.items.map((item) => {
+              const itemNutrition = calculateMealItemNutrition(item, foods);
+
+              if (!itemNutrition) {
+                return null;
+              }
+
+              return (
+                <View key={item.id} style={styles.foodRow}>
+                  <View style={styles.foodDot} />
+                  <View style={styles.foodRowBody}>
+                    <Text style={styles.foodName}>{itemNutrition.food.name}</Text>
+                    <Text style={styles.foodMeta}>
+                      {itemNutrition.label} - {itemNutrition.grams}g calculados
+                    </Text>
+                  </View>
+                  <Text style={styles.foodCalories}>{itemNutrition.totals.calories} kcal</Text>
+                </View>
+              );
+            })}
           </View>
-          <Text style={styles.loadText}>{meal.calories}</Text>
         </View>
       ))}
+
+      <SectionTitle title="Base de alimentos" />
+      <View style={styles.foodLibrary}>
+        {foods.map((food) => (
+          <View key={food.id} style={styles.libraryCard}>
+            <View style={styles.libraryIcon}>
+              <Apple size={21} color={colors.primary} />
+            </View>
+            <View style={styles.listBody}>
+              <Text style={styles.cardTitle}>{food.name}</Text>
+              <Text style={styles.cardText}>
+                {food.caloriesPer100g} kcal/100g - {food.defaultServing.label}
+              </Text>
+            </View>
+            <View style={styles.addButton}>
+              <Plus size={18} color={colors.primary} />
+            </View>
+          </View>
+        ))}
+      </View>
     </>
   );
 }
@@ -127,13 +173,15 @@ const styles = StyleSheet.create({
     fontSize: 11,
     marginTop: 4,
   },
-  listCard: {
-    alignItems: 'center',
+  mealCard: {
     backgroundColor: colors.surface,
     borderRadius: radii.md,
-    flexDirection: 'row',
     marginBottom: 10,
     padding: 12,
+  },
+  mealHeader: {
+    alignItems: 'center',
+    flexDirection: 'row',
   },
   foodIcon: {
     alignItems: 'center',
@@ -162,5 +210,67 @@ const styles = StyleSheet.create({
     color: colors.primary,
     fontSize: 16,
     fontWeight: '800',
+  },
+  foodRows: {
+    borderTopColor: colors.border,
+    borderTopWidth: 1,
+    gap: 10,
+    marginTop: 12,
+    paddingTop: 12,
+  },
+  foodRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 9,
+  },
+  foodDot: {
+    backgroundColor: colors.secondarySoft,
+    borderRadius: 5,
+    height: 10,
+    width: 10,
+  },
+  foodRowBody: {
+    flex: 1,
+  },
+  foodName: {
+    color: colors.text,
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  foodMeta: {
+    color: colors.muted,
+    fontSize: 12,
+    marginTop: 2,
+  },
+  foodCalories: {
+    color: colors.primary,
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  foodLibrary: {
+    gap: 10,
+  },
+  libraryCard: {
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderRadius: radii.md,
+    flexDirection: 'row',
+    padding: 12,
+  },
+  libraryIcon: {
+    alignItems: 'center',
+    backgroundColor: colors.primarySoft,
+    borderRadius: radii.md,
+    height: 48,
+    justifyContent: 'center',
+    width: 48,
+  },
+  addButton: {
+    alignItems: 'center',
+    backgroundColor: colors.primarySoft,
+    borderRadius: radii.md,
+    height: 34,
+    justifyContent: 'center',
+    width: 34,
   },
 });

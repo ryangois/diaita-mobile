@@ -57,6 +57,36 @@ export type WorkoutDay = {
 export type Meal = {
   id: string;
   name: string;
+  items: MealItem[];
+};
+
+export type NutritionUnit = 'g' | 'unit' | 'portion';
+
+export type Food = {
+  id: string;
+  name: string;
+  category: string;
+  caloriesPer100g: number;
+  proteinPer100g: number;
+  carbsPer100g: number;
+  fatPer100g: number;
+  defaultServing: {
+    unit: NutritionUnit;
+    amount: number;
+    grams: number;
+    label: string;
+  };
+};
+
+export type MealItem = {
+  id: string;
+  foodId: string;
+  unit: NutritionUnit;
+  amount: number;
+  grams?: number;
+};
+
+export type NutritionTotals = {
   calories: number;
   protein: number;
   carbs: number;
