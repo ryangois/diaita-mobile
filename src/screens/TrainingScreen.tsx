@@ -1,4 +1,4 @@
-import { CheckCircle2, Clock3, Dumbbell, Flame, Play, Target } from 'lucide-react-native';
+import { CheckCircle2, Clock3, Dumbbell, Flame, Minus, Play, Plus, Target, Trash2 } from 'lucide-react-native';
 import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -6,7 +6,7 @@ import { ActiveWorkoutSession } from '../components/ActiveWorkoutSession';
 import { ExerciseMedia } from '../components/ExerciseMedia';
 import { SectionTitle } from '../components/SectionTitle';
 import { profile } from '../data/profile';
-import { exercises, getExerciseById, workoutDays } from '../data/training';
+import { exercises, getExerciseById } from '../data/training';
 import { colors, radii } from '../styles/theme';
 import {
   calculateWorkoutVolume,
@@ -18,9 +18,21 @@ import {
   countCompletedSets,
   createWorkoutSession,
 } from '../utils/workoutSession';
-import type { WorkoutSession } from '../types';
+import type { WorkoutDay, WorkoutSession } from '../types';
 
-export function TrainingScreen() {
+type TrainingScreenProps = {
+  workoutDays: WorkoutDay[];
+  workoutHistory: WorkoutSession[];
+  onWorkoutDaysChange: (workoutDays: WorkoutDay[]) => void;
+  onWorkoutHistoryChange: (workoutHistory: WorkoutSession[]) => void;
+};
+
+export function TrainingScreen({
+  workoutDays,
+  workoutHistory,
+  onWorkoutDaysChange,
+  onWorkoutHistoryChange,
+}: TrainingScreenProps) {
   const [activeWorkoutId, setActiveWorkoutId] = useState(workoutDays[0].id);
   const [activeSession, setActiveSession] = useState<WorkoutSession | null>(null);
   const [finishedSession, setFinishedSession] = useState<WorkoutSession | null>(null);
@@ -34,6 +46,53 @@ export function TrainingScreen() {
   const selectedCalories = getSelectedWorkoutCalories(activeWorkout, profile);
   const calorieOptions = getWorkoutCalorieOptions(activeWorkout, profile);
 
+  function updateActiveWorkout(update: WorkoutDay) {
+    onWorkoutDaysChange(workoutDays.map((workout) => (workout.id === update.id ? update : workout)));
+  }
+
+  function addExerciseToWorkout(exerciseId: string) {
+    const exists = activeWorkout.exercises.some((exercise) => exercise.exerciseId === exerciseId);
+
+    if (exists) {
+      return;
+    }
+
+    updateActiveWorkout({
+      ...activeWorkout,
+      exercises: [
+        ...activeWorkout.exercises,
+        { exerciseId, sets: 3, reps: 10, targetLoadKg: 30, restSeconds: 75 },
+      ],
+    });
+  }
+
+  function removeExerciseFromWorkout(exerciseId: string) {
+    updateActiveWorkout({
+      ...activeWorkout,
+      exercises: activeWorkout.exercises.filter((exercise) => exercise.exerciseId !== exerciseId),
+    });
+  }
+
+  function updateExercisePlan(
+    exerciseId: string,
+    field: 'sets' | 'reps' | 'targetLoadKg' | 'restSeconds',
+    delta: number,
+  ) {
+    updateActiveWorkout({
+      ...activeWorkout,
+      exercises: activeWorkout.exercises.map((exercise) => {
+        if (exercise.exerciseId !== exerciseId) {
+          return exercise;
+        }
+
+        return {
+          ...exercise,
+          [field]: Math.max(field === 'targetLoadKg' ? 0 : 1, exercise[field] + delta),
+        };
+      }),
+    });
+  }
+
   if (activeSession) {
     return (
       <ActiveWorkoutSession
@@ -42,6 +101,7 @@ export function TrainingScreen() {
         onCancel={() => setActiveSession(null)}
         onFinish={(session) => {
           setFinishedSession(session);
+          onWorkoutHistoryChange([session, ...workoutHistory]);
           setActiveSession(null);
         }}
         onUpdateSession={setActiveSession}
@@ -171,7 +231,20 @@ export function TrainingScreen() {
                 {exercise.muscleGroup} - {plannedExercise.restSeconds}s descanso
               </Text>
             </View>
-            <Text style={styles.loadText}>{plannedExercise.targetLoadKg} kg</Text>
+            <View style={styles.planControls}>
+              <Text style={styles.loadText}>{plannedExercise.targetLoadKg} kg</Text>
+              <View style={styles.planControlRow}>
+                <IconButton icon={Minus} onPress={() => updateExercisePlan(exercise.id, 'sets', -1)} />
+                <Text style={styles.planControlText}>{plannedExercise.sets}s</Text>
+                <IconButton icon={Plus} onPress={() => updateExercisePlan(exercise.id, 'sets', 1)} />
+              </View>
+              <View style={styles.planControlRow}>
+                <IconButton icon={Minus} onPress={() => updateExercisePlan(exercise.id, 'targetLoadKg', -2.5)} />
+                <Text style={styles.planControlText}>kg</Text>
+                <IconButton icon={Plus} onPress={() => updateExercisePlan(exercise.id, 'targetLoadKg', 2.5)} />
+              </View>
+              <IconButton icon={Trash2} onPress={() => removeExerciseFromWorkout(exercise.id)} />
+            </View>
           </View>
         );
       })}
@@ -188,10 +261,26 @@ export function TrainingScreen() {
               </Text>
               <Text style={styles.executionCue}>{exercise.executionCue}</Text>
             </View>
+            <Pressable
+              style={styles.addExerciseButton}
+              onPress={() => addExerciseToWorkout(exercise.id)}
+              accessibilityRole="button"
+              accessibilityLabel={`Adicionar ${exercise.name}`}
+            >
+              <Plus size={18} color={colors.primary} />
+            </Pressable>
           </View>
         ))}
       </View>
     </>
+  );
+}
+
+function IconButton({ icon: Icon, onPress }: { icon: typeof Plus; onPress: () => void }) {
+  return (
+    <Pressable style={styles.smallIconButton} onPress={onPress}>
+      <Icon size={15} color={colors.primary} />
+    </Pressable>
   );
 }
 
@@ -379,6 +468,30 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '800',
   },
+  planControls: {
+    alignItems: 'flex-end',
+    gap: 5,
+  },
+  planControlRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 4,
+  },
+  planControlText: {
+    color: colors.muted,
+    fontSize: 11,
+    fontWeight: '800',
+    minWidth: 20,
+    textAlign: 'center',
+  },
+  smallIconButton: {
+    alignItems: 'center',
+    backgroundColor: colors.primarySoft,
+    borderRadius: radii.sm,
+    height: 26,
+    justifyContent: 'center',
+    width: 26,
+  },
   libraryGrid: {
     gap: 10,
   },
@@ -392,6 +505,14 @@ const styles = StyleSheet.create({
   libraryBody: {
     flex: 1,
     paddingLeft: 14,
+  },
+  addExerciseButton: {
+    alignItems: 'center',
+    backgroundColor: colors.primarySoft,
+    borderRadius: radii.md,
+    height: 36,
+    justifyContent: 'center',
+    width: 36,
   },
   executionCue: {
     color: colors.primaryMid,

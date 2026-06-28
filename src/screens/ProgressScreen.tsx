@@ -3,8 +3,47 @@ import { StyleSheet, Text, View } from 'react-native';
 import { SectionTitle } from '../components/SectionTitle';
 import { loadChart, progressInsights } from '../data/progress';
 import { colors, radii } from '../styles/theme';
+import type { Food, Meal, WorkoutSession } from '../types';
+import { calculateNutritionTotals } from '../utils/nutrition';
+import { calculateSessionVolume, countCompletedSets } from '../utils/workoutSession';
 
-export function ProgressScreen() {
+type ProgressScreenProps = {
+  foods: Food[];
+  meals: Meal[];
+  workoutHistory: WorkoutSession[];
+};
+
+export function ProgressScreen({ foods, meals, workoutHistory }: ProgressScreenProps) {
+  const nutritionTotals = calculateNutritionTotals(meals, foods);
+  const totalWorkoutVolume = workoutHistory.reduce(
+    (total, session) => total + calculateSessionVolume(session),
+    0,
+  );
+  const completedSets = workoutHistory.reduce(
+    (total, session) => total + countCompletedSets(session),
+    0,
+  );
+  const dynamicInsights = [
+    {
+      id: 'history-count',
+      label: 'Treinos salvos',
+      note: 'persistidos localmente',
+      value: `${workoutHistory.length}`,
+    },
+    {
+      id: 'history-volume',
+      label: 'Volume registrado',
+      note: `${completedSets} series concluidas`,
+      value: `${Math.round(totalWorkoutVolume).toLocaleString('pt-BR')} kg`,
+    },
+    {
+      id: 'nutrition-today',
+      label: 'Calorias de hoje',
+      note: `${nutritionTotals.protein}g proteina`,
+      value: `${nutritionTotals.calories}`,
+    },
+  ];
+
   return (
     <>
       <SectionTitle title="Evolucao" />
@@ -22,7 +61,7 @@ export function ProgressScreen() {
         </Text>
       </View>
 
-      {progressInsights.map((row) => (
+      {[...dynamicInsights, ...progressInsights].map((row) => (
         <View key={row.id} style={styles.insightRow}>
           <View style={styles.insightBody}>
             <Text style={styles.cardTitle}>{row.label}</Text>
@@ -31,6 +70,29 @@ export function ProgressScreen() {
           <Text style={styles.insightValue}>{row.value}</Text>
         </View>
       ))}
+
+      <SectionTitle title="Historico de treinos" />
+      {workoutHistory.length === 0 ? (
+        <View style={styles.emptyHistory}>
+          <Text style={styles.cardTitle}>Nenhum treino salvo ainda</Text>
+          <Text style={styles.cardText}>Finalize um treino para alimentar este painel.</Text>
+        </View>
+      ) : (
+        workoutHistory.slice(0, 5).map((session) => (
+          <View key={session.id} style={styles.historyRow}>
+            <View style={styles.insightBody}>
+              <Text style={styles.cardTitle}>
+                {new Date(session.startedAt).toLocaleDateString('pt-BR')}
+              </Text>
+              <Text style={styles.cardText}>
+                {countCompletedSets(session)} series -{' '}
+                {Math.round(calculateSessionVolume(session)).toLocaleString('pt-BR')} kg
+              </Text>
+            </View>
+            <Text style={styles.insightValue}>OK</Text>
+          </View>
+        ))
+      )}
     </>
   );
 }
@@ -88,5 +150,19 @@ const styles = StyleSheet.create({
     color: colors.primaryMid,
     fontSize: 18,
     fontWeight: '800',
+  },
+  emptyHistory: {
+    backgroundColor: colors.surface,
+    borderRadius: radii.md,
+    padding: 16,
+  },
+  historyRow: {
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderRadius: radii.md,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+    padding: 16,
   },
 });

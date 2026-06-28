@@ -1,9 +1,9 @@
 import { Apple, Minus, Plus, Utensils } from 'lucide-react-native';
 import { useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { SectionTitle } from '../components/SectionTitle';
-import { dailyNutritionGoal, foods, meals as initialMeals } from '../data/nutrition';
+import { dailyNutritionGoal } from '../data/nutrition';
 import { colors, radii } from '../styles/theme';
 import type { Food, Meal } from '../types';
 import {
@@ -12,9 +12,23 @@ import {
   calculateNutritionTotals,
 } from '../utils/nutrition';
 
-export function DietScreen() {
-  const [meals, setMeals] = useState<Meal[]>(initialMeals);
-  const [selectedMealId, setSelectedMealId] = useState(initialMeals[0].id);
+type DietScreenProps = {
+  foods: Food[];
+  isLoaded: boolean;
+  meals: Meal[];
+  onFoodsChange: (foods: Food[]) => void;
+  onMealsChange: (meals: Meal[]) => void;
+};
+
+export function DietScreen({ foods, isLoaded, meals, onFoodsChange, onMealsChange }: DietScreenProps) {
+  const [selectedMealId, setSelectedMealId] = useState(meals[0]?.id ?? 'breakfast');
+  const [draftFood, setDraftFood] = useState({
+    name: '',
+    caloriesPer100g: '100',
+    proteinPer100g: '10',
+    carbsPer100g: '10',
+    fatPer100g: '3',
+  });
 
   const mealsWithTotals = useMemo(
     () =>
@@ -35,8 +49,8 @@ export function DietScreen() {
   const selectedMeal = meals.find((meal) => meal.id === selectedMealId) ?? meals[0];
 
   function addFoodToSelectedMeal(food: Food) {
-    setMeals((currentMeals) =>
-      currentMeals.map((meal) => {
+    onMealsChange(
+      meals.map((meal) => {
         if (meal.id !== selectedMeal.id) {
           return meal;
         }
@@ -71,8 +85,8 @@ export function DietScreen() {
   }
 
   function changeMealItemAmount(mealId: string, itemId: string, delta: number) {
-    setMeals((currentMeals) =>
-      currentMeals.map((meal) => {
+    onMealsChange(
+      meals.map((meal) => {
         if (meal.id !== mealId) {
           return meal;
         }
@@ -87,6 +101,33 @@ export function DietScreen() {
     );
   }
 
+  function createManualFood() {
+    const foodName = draftFood.name.trim();
+
+    if (!foodName) {
+      return;
+    }
+
+    const newFood: Food = {
+      id: `custom-${foodName.toLowerCase().replace(/\s+/g, '-')}-${Date.now()}`,
+      name: foodName,
+      category: 'Manual',
+      caloriesPer100g: readNumber(draftFood.caloriesPer100g),
+      proteinPer100g: readNumber(draftFood.proteinPer100g),
+      carbsPer100g: readNumber(draftFood.carbsPer100g),
+      fatPer100g: readNumber(draftFood.fatPer100g),
+      defaultServing: {
+        unit: 'g',
+        amount: 100,
+        grams: 100,
+        label: '100g',
+      },
+    };
+
+    onFoodsChange([...foods, newFood]);
+    setDraftFood((current) => ({ ...current, name: '' }));
+  }
+
   return (
     <>
       <View style={styles.nutritionPanel}>
@@ -98,9 +139,9 @@ export function DietScreen() {
           <View style={[styles.progressFill, { width: `${calorieProgress}%` }]} />
         </View>
         <Text style={styles.panelText}>
-          {remainingCalories > 0
-            ? `Faltam ${remainingCalories} kcal para fechar o dia.`
-            : 'Meta de calorias concluida hoje.'}
+          {isLoaded ? 'Dados salvos localmente neste aparelho.' : 'Carregando dados locais...'}
+          {' '}
+          {remainingCalories > 0 ? `Faltam ${remainingCalories} kcal.` : 'Meta concluida hoje.'}
         </Text>
       </View>
 
@@ -188,6 +229,46 @@ export function DietScreen() {
 
       <SectionTitle title="Base de alimentos" />
       <Text style={styles.libraryHint}>Adicionando em: {selectedMeal.name}</Text>
+      <View style={styles.manualFoodPanel}>
+        <Text style={styles.manualFoodTitle}>Criar alimento manual</Text>
+        <TextInput
+          style={styles.textInput}
+          placeholder="Nome do alimento"
+          placeholderTextColor={colors.muted}
+          value={draftFood.name}
+          onChangeText={(name) => setDraftFood((current) => ({ ...current, name }))}
+        />
+        <View style={styles.inputGrid}>
+          <MacroInput
+            label="kcal"
+            value={draftFood.caloriesPer100g}
+            onChangeText={(caloriesPer100g) =>
+              setDraftFood((current) => ({ ...current, caloriesPer100g }))
+            }
+          />
+          <MacroInput
+            label="prot"
+            value={draftFood.proteinPer100g}
+            onChangeText={(proteinPer100g) =>
+              setDraftFood((current) => ({ ...current, proteinPer100g }))
+            }
+          />
+          <MacroInput
+            label="carb"
+            value={draftFood.carbsPer100g}
+            onChangeText={(carbsPer100g) => setDraftFood((current) => ({ ...current, carbsPer100g }))}
+          />
+          <MacroInput
+            label="gord"
+            value={draftFood.fatPer100g}
+            onChangeText={(fatPer100g) => setDraftFood((current) => ({ ...current, fatPer100g }))}
+          />
+        </View>
+        <Pressable style={styles.createFoodButton} onPress={createManualFood}>
+          <Plus size={18} color={colors.surface} />
+          <Text style={styles.createFoodButtonText}>Salvar alimento</Text>
+        </Pressable>
+      </View>
       <View style={styles.foodLibrary}>
         {foods.map((food) => (
           <View key={food.id} style={styles.libraryCard}>
@@ -213,6 +294,33 @@ export function DietScreen() {
       </View>
     </>
   );
+}
+
+function MacroInput({
+  label,
+  onChangeText,
+  value,
+}: {
+  label: string;
+  onChangeText: (value: string) => void;
+  value: string;
+}) {
+  return (
+    <View style={styles.macroInputBox}>
+      <Text style={styles.macroInputLabel}>{label}/100g</Text>
+      <TextInput
+        keyboardType="numeric"
+        style={styles.macroTextInput}
+        value={value}
+        onChangeText={onChangeText}
+      />
+    </View>
+  );
+}
+
+function readNumber(value: string) {
+  const parsed = Number(value.replace(',', '.'));
+  return Number.isFinite(parsed) ? parsed : 0;
 }
 
 function MacroCard({ label, value, target }: { label: string; value: string; target: string }) {
@@ -405,6 +513,68 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     marginBottom: 10,
     marginTop: -4,
+  },
+  manualFoodPanel: {
+    backgroundColor: colors.surface,
+    borderRadius: radii.md,
+    marginBottom: 10,
+    padding: 12,
+  },
+  manualFoodTitle: {
+    color: colors.primary,
+    fontSize: 15,
+    fontWeight: '800',
+    marginBottom: 10,
+  },
+  textInput: {
+    backgroundColor: colors.background,
+    borderRadius: radii.md,
+    color: colors.text,
+    fontSize: 14,
+    minHeight: 42,
+    paddingHorizontal: 12,
+  },
+  inputGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 10,
+  },
+  macroInputBox: {
+    backgroundColor: colors.background,
+    borderRadius: radii.md,
+    flexGrow: 1,
+    minWidth: '47%',
+    padding: 10,
+  },
+  macroInputLabel: {
+    color: colors.muted,
+    fontSize: 11,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+  },
+  macroTextInput: {
+    color: colors.primary,
+    fontSize: 17,
+    fontWeight: '800',
+    marginTop: 4,
+    padding: 0,
+  },
+  createFoodButton: {
+    alignItems: 'center',
+    backgroundColor: colors.secondary,
+    borderRadius: radii.md,
+    flexDirection: 'row',
+    gap: 8,
+    justifyContent: 'center',
+    marginTop: 10,
+    marginBottom: 10,
+    minHeight: 46,
+  },
+  createFoodButtonText: {
+    color: colors.surface,
+    fontSize: 14,
+    fontWeight: '800',
   },
   libraryCard: {
     alignItems: 'center',

@@ -102,6 +102,15 @@ export type Food = {
   };
 };
 
+export type DraftFood = {
+  name: string;
+  category: string;
+  caloriesPer100g: number;
+  proteinPer100g: number;
+  carbsPer100g: number;
+  fatPer100g: number;
+};
+
 export type MealItem = {
   id: string;
   foodId: string;
@@ -122,4 +131,11 @@ export type ProgressInsight = {
   label: string;
   value: string;
   note: string;
+};
+
+export type AppData = {
+  foods: Food[];
+  meals: Meal[];
+  workoutDays: WorkoutDay[];
+  workoutHistory: WorkoutSession[];
 };
