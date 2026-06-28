@@ -1,11 +1,17 @@
-import { Clock3, Dumbbell, Target } from 'lucide-react-native';
+import { Clock3, Dumbbell, Flame, Target } from 'lucide-react-native';
 import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { ExerciseMedia } from '../components/ExerciseMedia';
 import { SectionTitle } from '../components/SectionTitle';
+import { profile } from '../data/profile';
 import { exercises, getExerciseById, workoutDays } from '../data/training';
 import { colors, radii } from '../styles/theme';
+import {
+  calculateWorkoutVolume,
+  getSelectedWorkoutCalories,
+  getWorkoutCalorieOptions,
+} from '../utils/calories';
 
 export function TrainingScreen() {
   const [activeWorkoutId, setActiveWorkoutId] = useState(workoutDays[0].id);
@@ -15,6 +21,9 @@ export function TrainingScreen() {
   }, [activeWorkoutId]);
 
   const totalSets = activeWorkout.exercises.reduce((sum, item) => sum + item.sets, 0);
+  const workoutVolume = calculateWorkoutVolume(activeWorkout);
+  const selectedCalories = getSelectedWorkoutCalories(activeWorkout, profile);
+  const calorieOptions = getWorkoutCalorieOptions(activeWorkout, profile);
 
   return (
     <>
@@ -56,7 +65,40 @@ export function TrainingScreen() {
             <Clock3 size={18} color={colors.primary} />
             <Text style={styles.summaryStatText}>{activeWorkout.estimatedMinutes} min</Text>
           </View>
+          <View style={styles.summaryStat}>
+            <Flame size={18} color={colors.primary} />
+            <Text style={styles.summaryStatText}>{selectedCalories.calories} kcal</Text>
+          </View>
         </View>
+      </View>
+
+      <SectionTitle title="Gasto calorico" />
+      <View style={styles.caloriePanel}>
+        <View>
+          <Text style={styles.calorieKicker}>Selecionado</Text>
+          <Text style={styles.calorieTitle}>
+            {selectedCalories.calories} kcal - {selectedCalories.label}
+          </Text>
+          <Text style={styles.cardText}>{selectedCalories.note}</Text>
+        </View>
+        <Text style={styles.volumeText}>{workoutVolume.toLocaleString('pt-BR')} kg volume</Text>
+      </View>
+
+      <View style={styles.calorieOptions}>
+        {calorieOptions.map((option) => {
+          const isActive = option.source === activeWorkout.selectedCalorieSource;
+
+          return (
+            <View key={option.source} style={[styles.calorieOption, isActive && styles.activeCalorieOption]}>
+              <Text style={[styles.optionCalories, isActive && styles.activeOptionText]}>
+                {option.calories}
+              </Text>
+              <Text style={[styles.optionLabel, isActive && styles.activeOptionText]}>
+                {option.label}
+              </Text>
+            </View>
+          );
+        })}
       </View>
 
       <SectionTitle title={`Treino ${activeWorkout.label}`} />
@@ -172,6 +214,59 @@ const styles = StyleSheet.create({
     color: colors.primary,
     fontSize: 12,
     fontWeight: '800',
+  },
+  caloriePanel: {
+    backgroundColor: colors.surface,
+    borderRadius: radii.md,
+    padding: 16,
+  },
+  calorieKicker: {
+    color: colors.primaryMid,
+    fontSize: 12,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+  },
+  calorieTitle: {
+    color: colors.primary,
+    fontSize: 21,
+    fontWeight: '800',
+    marginTop: 5,
+  },
+  volumeText: {
+    color: colors.primaryMid,
+    fontSize: 12,
+    fontWeight: '800',
+    marginTop: 12,
+  },
+  calorieOptions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 10,
+  },
+  calorieOption: {
+    backgroundColor: colors.surface,
+    borderRadius: radii.md,
+    flexGrow: 1,
+    minWidth: '47%',
+    padding: 12,
+  },
+  activeCalorieOption: {
+    backgroundColor: colors.primary,
+  },
+  optionCalories: {
+    color: colors.primary,
+    fontSize: 18,
+    fontWeight: '800',
+  },
+  optionLabel: {
+    color: colors.muted,
+    fontSize: 12,
+    fontWeight: '700',
+    marginTop: 4,
+  },
+  activeOptionText: {
+    color: colors.surface,
   },
   listCard: {
     alignItems: 'center',

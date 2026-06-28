@@ -27,9 +27,18 @@ export type Exercise = {
 export type WorkoutExercise = {
   exerciseId: string;
   sets: number;
-  reps: string;
+  reps: number;
   targetLoadKg: number;
   restSeconds: number;
+};
+
+export type CalorieSource = 'manual' | 'harris_benedict' | 'workout_estimate' | 'wearable';
+
+export type WorkoutCalorieEntry = {
+  source: CalorieSource;
+  label: string;
+  calories: number;
+  note: string;
 };
 
 export type WorkoutDay = {
@@ -38,6 +47,10 @@ export type WorkoutDay = {
   title: string;
   focus: string;
   estimatedMinutes: number;
+  effortLevel: 'leve' | 'moderado' | 'intenso' | 'muito_intenso';
+  selectedCalorieSource: CalorieSource;
+  manualCalories?: number;
+  wearableCalories?: number;
   exercises: WorkoutExercise[];
 };
 

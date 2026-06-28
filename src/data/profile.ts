@@ -1,5 +1,7 @@
 export const profile = {
   name: 'Ryan',
+  age: 26,
+  sex: 'male',
   weightKg: 82.4,
   heightCm: 178,
   level: 'Intermediario',

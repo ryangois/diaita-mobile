@@ -18,6 +18,7 @@ O Diaita deve ajudar o usuario a treinar melhor, comer com mais controle e enten
 - Timer de descanso entre series.
 - Registro de treino concluido.
 - Estimativa de gasto calorico por treino com base em exercicios, series, repeticoes, carga, tempo de execucao, descanso e perfil do usuario.
+- Gasto calorico editavel pelo usuario, podendo ser manual, calculado por Harris-Benedict, estimado pelo esforco do treino ou importado de wearable.
 - Substituicao de exercicios por equipamento, lesao ou preferencia.
 - Treinos para academia, casa ou peso corporal.
 - Controle de recordes pessoais: maior carga, maior volume e maior numero de repeticoes.

@@ -6,13 +6,16 @@ import { MetricCard } from '../components/MetricCard';
 import { SectionTitle } from '../components/SectionTitle';
 import { StatPill } from '../components/StatPill';
 import { nutritionTotals } from '../data/nutrition';
+import { profile } from '../data/profile';
 import { getExerciseById, workoutDays } from '../data/training';
 import { colors, radii } from '../styles/theme';
+import { getSelectedWorkoutCalories } from '../utils/calories';
 
 export function TodayScreen() {
   const todayWorkout = workoutDays[0];
   const firstWorkoutExercise = todayWorkout.exercises[0];
   const firstExercise = getExerciseById(firstWorkoutExercise.exerciseId);
+  const workoutCalories = getSelectedWorkoutCalories(todayWorkout, profile);
 
   return (
     <>
@@ -24,7 +27,7 @@ export function TodayScreen() {
         </Text>
         <View style={styles.heroStats}>
           <StatPill icon={Dumbbell} value={`${todayWorkout.exercises.length}`} label="exercicios" />
-          <StatPill icon={Flame} value={`${nutritionTotals.calories}`} label="kcal usadas" />
+          <StatPill icon={Flame} value={`${workoutCalories.calories}`} label="kcal treino" />
           <StatPill icon={Timer} value={`${todayWorkout.estimatedMinutes}m`} label="estimado" />
         </View>
       </View>
@@ -34,7 +37,7 @@ export function TodayScreen() {
         <MetricCard icon={Activity} label="Treinos" value="4/5" tone="green" />
         <MetricCard icon={Apple} label="Proteina" value={`${nutritionTotals.protein}g`} tone="red" />
         <MetricCard icon={Scale} label="Peso" value="82,4kg" tone="blue" />
-        <MetricCard icon={BarChart3} label="Volume" value="+18%" tone="yellow" />
+        <MetricCard icon={BarChart3} label={workoutCalories.label} value={`${workoutCalories.calories}`} tone="yellow" />
       </View>
 
       <SectionTitle title="Proxima acao" />
@@ -47,7 +50,7 @@ export function TodayScreen() {
             {firstWorkoutExercise.targetLoadKg} kg
           </Text>
           <Text style={styles.smallSignal}>
-            Descanso sugerido: {firstWorkoutExercise.restSeconds} segundos
+            {workoutCalories.calories} kcal por {workoutCalories.label.toLowerCase()}
           </Text>
         </View>
       </View>

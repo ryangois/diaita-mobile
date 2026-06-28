@@ -64,10 +64,14 @@ export const workoutDays: WorkoutDay[] = [
     title: 'Peito, costas e ombros',
     focus: 'Forca superior',
     estimatedMinutes: 62,
+    effortLevel: 'intenso',
+    selectedCalorieSource: 'workout_estimate',
+    manualCalories: 450,
+    wearableCalories: 420,
     exercises: [
-      { exerciseId: 'bench-press', sets: 4, reps: '8', targetLoadKg: 72, restSeconds: 90 },
-      { exerciseId: 'bent-row', sets: 4, reps: '10', targetLoadKg: 64, restSeconds: 90 },
-      { exerciseId: 'shoulder-press', sets: 3, reps: '10', targetLoadKg: 32, restSeconds: 75 },
+      { exerciseId: 'bench-press', sets: 4, reps: 8, targetLoadKg: 72, restSeconds: 90 },
+      { exerciseId: 'bent-row', sets: 4, reps: 10, targetLoadKg: 64, restSeconds: 90 },
+      { exerciseId: 'shoulder-press', sets: 3, reps: 10, targetLoadKg: 32, restSeconds: 75 },
     ],
   },
   {
@@ -76,9 +80,12 @@ export const workoutDays: WorkoutDay[] = [
     title: 'Pernas e posterior',
     focus: 'Base e estabilidade',
     estimatedMinutes: 70,
+    effortLevel: 'muito_intenso',
+    selectedCalorieSource: 'manual',
+    manualCalories: 620,
     exercises: [
-      { exerciseId: 'squat', sets: 5, reps: '5', targetLoadKg: 96, restSeconds: 120 },
-      { exerciseId: 'romanian-deadlift', sets: 4, reps: '8', targetLoadKg: 88, restSeconds: 100 },
+      { exerciseId: 'squat', sets: 5, reps: 5, targetLoadKg: 96, restSeconds: 120 },
+      { exerciseId: 'romanian-deadlift', sets: 4, reps: 8, targetLoadKg: 88, restSeconds: 100 },
     ],
   },
   {
@@ -87,9 +94,12 @@ export const workoutDays: WorkoutDay[] = [
     title: 'Costas e bracos',
     focus: 'Hipertrofia',
     estimatedMinutes: 58,
+    effortLevel: 'moderado',
+    selectedCalorieSource: 'harris_benedict',
+    wearableCalories: 360,
     exercises: [
-      { exerciseId: 'lat-pulldown', sets: 4, reps: '12', targetLoadKg: 58, restSeconds: 75 },
-      { exerciseId: 'bent-row', sets: 3, reps: '10', targetLoadKg: 60, restSeconds: 90 },
+      { exerciseId: 'lat-pulldown', sets: 4, reps: 12, targetLoadKg: 58, restSeconds: 75 },
+      { exerciseId: 'bent-row', sets: 3, reps: 10, targetLoadKg: 60, restSeconds: 90 },
     ],
   },
   {
@@ -98,9 +108,13 @@ export const workoutDays: WorkoutDay[] = [
     title: 'Full body tecnico',
     focus: 'Volume moderado',
     estimatedMinutes: 50,
+    effortLevel: 'leve',
+    selectedCalorieSource: 'wearable',
+    wearableCalories: 310,
+    manualCalories: 300,
     exercises: [
-      { exerciseId: 'bench-press', sets: 3, reps: '8', targetLoadKg: 68, restSeconds: 90 },
-      { exerciseId: 'squat', sets: 3, reps: '8', targetLoadKg: 82, restSeconds: 100 },
+      { exerciseId: 'bench-press', sets: 3, reps: 8, targetLoadKg: 68, restSeconds: 90 },
+      { exerciseId: 'squat', sets: 3, reps: 8, targetLoadKg: 82, restSeconds: 100 },
     ],
   },
 ];

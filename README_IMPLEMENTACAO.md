@@ -131,6 +131,9 @@ Treinos realizados:
 - started_at
 - finished_at
 - estimated_calories_burned
+- calorie_source
+- manual_calories_burned
+- wearable_calories_burned
 - perceived_effort
 - notes
 
@@ -276,6 +279,24 @@ O app deve estimar o gasto calorico de cada treino usando os dados registrados d
 - Tempo total do treino.
 - Tempo de descanso.
 - Percepcao de esforco, como RPE.
+
+O usuario tambem deve poder escolher a origem do gasto calorico:
+
+```text
+manual = numero digitado livremente pelo usuario
+harris_benedict = calculo proporcional pela TMB estimada
+workout_estimate = estimativa por carga, series, repeticoes, tempo e esforco
+wearable = valor vindo de relogio ou app externo
+```
+
+Modelo recomendado:
+
+```text
+calories_burned = valor final usado nos dashboards
+calorie_source = manual | harris_benedict | workout_estimate | wearable
+manual_calories_burned = valor livre digitado pelo usuario
+wearable_calories_burned = valor importado de integracao externa
+```
 
 Primeira versao simples:
 
