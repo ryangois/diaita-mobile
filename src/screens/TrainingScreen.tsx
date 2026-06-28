@@ -1,7 +1,8 @@
-import { Clock3, Dumbbell, Flame, Target } from 'lucide-react-native';
+import { CheckCircle2, Clock3, Dumbbell, Flame, Play, Target } from 'lucide-react-native';
 import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { ActiveWorkoutSession } from '../components/ActiveWorkoutSession';
 import { ExerciseMedia } from '../components/ExerciseMedia';
 import { SectionTitle } from '../components/SectionTitle';
 import { profile } from '../data/profile';
@@ -12,9 +13,17 @@ import {
   getSelectedWorkoutCalories,
   getWorkoutCalorieOptions,
 } from '../utils/calories';
+import {
+  calculateSessionVolume,
+  countCompletedSets,
+  createWorkoutSession,
+} from '../utils/workoutSession';
+import type { WorkoutSession } from '../types';
 
 export function TrainingScreen() {
   const [activeWorkoutId, setActiveWorkoutId] = useState(workoutDays[0].id);
+  const [activeSession, setActiveSession] = useState<WorkoutSession | null>(null);
+  const [finishedSession, setFinishedSession] = useState<WorkoutSession | null>(null);
 
   const activeWorkout = useMemo(() => {
     return workoutDays.find((workout) => workout.id === activeWorkoutId) ?? workoutDays[0];
@@ -24,6 +33,21 @@ export function TrainingScreen() {
   const workoutVolume = calculateWorkoutVolume(activeWorkout);
   const selectedCalories = getSelectedWorkoutCalories(activeWorkout, profile);
   const calorieOptions = getWorkoutCalorieOptions(activeWorkout, profile);
+
+  if (activeSession) {
+    return (
+      <ActiveWorkoutSession
+        session={activeSession}
+        workout={activeWorkout}
+        onCancel={() => setActiveSession(null)}
+        onFinish={(session) => {
+          setFinishedSession(session);
+          setActiveSession(null);
+        }}
+        onUpdateSession={setActiveSession}
+      />
+    );
+  }
 
   return (
     <>
@@ -71,6 +95,32 @@ export function TrainingScreen() {
           </View>
         </View>
       </View>
+
+      <Pressable
+        style={styles.startButton}
+        onPress={() => {
+          setFinishedSession(null);
+          setActiveSession(createWorkoutSession(activeWorkout));
+        }}
+        accessibilityRole="button"
+        accessibilityLabel={`Iniciar treino ${activeWorkout.label}`}
+      >
+        <Play size={20} color={colors.surface} fill={colors.surface} />
+        <Text style={styles.startButtonText}>Iniciar treino</Text>
+      </Pressable>
+
+      {finishedSession && (
+        <View style={styles.finishedPanel}>
+          <CheckCircle2 size={22} color={colors.primary} />
+          <View style={styles.finishedBody}>
+            <Text style={styles.cardTitle}>Treino finalizado</Text>
+            <Text style={styles.cardText}>
+              {countCompletedSets(finishedSession)} series -{' '}
+              {calculateSessionVolume(finishedSession).toLocaleString('pt-BR')} kg volume
+            </Text>
+          </View>
+        </View>
+      )}
 
       <SectionTitle title="Gasto calorico" />
       <View style={styles.caloriePanel}>
@@ -214,6 +264,33 @@ const styles = StyleSheet.create({
     color: colors.primary,
     fontSize: 12,
     fontWeight: '800',
+  },
+  startButton: {
+    alignItems: 'center',
+    backgroundColor: colors.primary,
+    borderRadius: radii.md,
+    flexDirection: 'row',
+    gap: 8,
+    justifyContent: 'center',
+    marginTop: 12,
+    minHeight: 52,
+  },
+  startButtonText: {
+    color: colors.surface,
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  finishedPanel: {
+    alignItems: 'center',
+    backgroundColor: colors.primarySoft,
+    borderRadius: radii.md,
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 12,
+    padding: 14,
+  },
+  finishedBody: {
+    flex: 1,
   },
   caloriePanel: {
     backgroundColor: colors.surface,

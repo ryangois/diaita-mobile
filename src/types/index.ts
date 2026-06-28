@@ -54,6 +54,30 @@ export type WorkoutDay = {
   exercises: WorkoutExercise[];
 };
 
+export type WorkoutSetLog = {
+  id: string;
+  exerciseId: string;
+  setNumber: number;
+  targetReps: number;
+  targetLoadKg: number;
+  actualReps: number;
+  actualLoadKg: number;
+  completed: boolean;
+};
+
+export type WorkoutSessionStatus = 'active' | 'finished';
+
+export type WorkoutSession = {
+  id: string;
+  workoutId: string;
+  startedAt: string;
+  finishedAt?: string;
+  status: WorkoutSessionStatus;
+  currentExerciseIndex: number;
+  currentSetIndex: number;
+  setLogs: WorkoutSetLog[];
+};
+
 export type Meal = {
   id: string;
   name: string;
