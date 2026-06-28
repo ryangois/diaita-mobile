@@ -17,6 +17,7 @@ O Diaita deve ajudar o usuario a treinar melhor, comer com mais controle e enten
 - Historico por exercicio.
 - Timer de descanso entre series.
 - Registro de treino concluido.
+- Estimativa de gasto calorico por treino com base em exercicios, series, repeticoes, carga, tempo de execucao, descanso e perfil do usuario.
 - Substituicao de exercicios por equipamento, lesao ou preferencia.
 - Treinos para academia, casa ou peso corporal.
 - Controle de recordes pessoais: maior carga, maior volume e maior numero de repeticoes.
@@ -28,6 +29,8 @@ O Diaita deve ajudar o usuario a treinar melhor, comer com mais controle e enten
 
 - Evolucao de carga por exercicio.
 - Evolucao de volume semanal por grupo muscular.
+- Gasto calorico estimado por treino, semana e grupo muscular.
+- Comparativo entre calorias estimadas no treino e calorias consumidas na dieta.
 - Grafico de peso corporal.
 - Registro de medidas corporais: cintura, peito, braco, perna, quadril e outros.
 - Fotos de evolucao.
@@ -82,6 +85,7 @@ O Diaita deve ajudar o usuario a treinar melhor, comer com mais controle e enten
 - Geracao de treinos baseada em objetivo, nivel e equipamentos.
 - Ajuste automatico da planilha conforme desempenho.
 - Sugestao de metas caloricas e macros.
+- Ajuste da estimativa de gasto calorico conforme historico real de carga, volume, duracao e percepcao de esforco.
 - Analise da evolucao de carga, volume e peso.
 - Identificacao de estagnacao.
 - Sugestoes de substituicao de exercicios e alimentos.
@@ -123,7 +127,7 @@ Para a primeira versao, o foco deve ser em funcionalidades essenciais:
 3. Biblioteca inicial de exercicios com GIFs ou imagens.
 4. Criacao e visualizacao de planilhas de treino.
 5. Registro de treino realizado.
-6. Dashboard simples de carga, volume e frequencia.
+6. Dashboard simples de carga, volume, frequencia e gasto calorico estimado.
 7. Diario alimentar com calorias e macros.
 8. Registro de peso corporal.
 

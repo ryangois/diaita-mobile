@@ -130,6 +130,8 @@ Treinos realizados:
 - workout_plan_id
 - started_at
 - finished_at
+- estimated_calories_burned
+- perceived_effort
 - notes
 
 ### foods
@@ -246,6 +248,7 @@ Indicadores iniciais:
 - Volume semanal.
 - Evolucao de carga por exercicio.
 - Recordes pessoais.
+- Gasto calorico estimado por treino.
 
 Formula basica de volume:
 
@@ -259,8 +262,49 @@ Depois, adicionar:
 - Comparacao entre semanas.
 - Alertas de estagnacao.
 - Sugestao de progressao.
+- Comparacao entre gasto calorico estimado, duracao do treino e percepcao de esforco.
 
-## 11. Implementar dieta e calorias
+## 11. Implementar gasto calorico estimado nos treinos
+
+O app deve estimar o gasto calorico de cada treino usando os dados registrados durante a execucao:
+
+- Peso corporal do usuario.
+- Exercicios realizados.
+- Series feitas.
+- Repeticoes feitas.
+- Carga usada.
+- Tempo total do treino.
+- Tempo de descanso.
+- Percepcao de esforco, como RPE.
+
+Primeira versao simples:
+
+```text
+volume_total = soma(series * repeticoes * carga)
+fator_intensidade = volume_total / peso_corporal
+calorias_estimadas = tempo_treino_min * met_aproximado * peso_corporal * 0.0175
+```
+
+O `met_aproximado` pode comecar como uma tabela simples:
+
+```text
+treino_leve = 3.5
+treino_moderado = 5.0
+treino_intenso = 6.0
+treino_muito_intenso = 7.0
+```
+
+Depois, o app pode ajustar o MET automaticamente usando volume, descanso e RPE:
+
+```text
+se descanso_medio_alto e rpe_baixo: usar MET menor
+se volume_alto e rpe_alto: usar MET maior
+se treino_curto_mas_muito_pesado: aumentar fator de intensidade
+```
+
+Importante: essa estimativa nao deve prometer precisao clinica. Ela deve ser apresentada como uma estimativa para acompanhamento pessoal e comparacao entre treinos.
+
+## 12. Implementar dieta e calorias
 
 Fluxo do MVP:
 
@@ -279,7 +323,7 @@ carboidratos = carboidratos_por_100g * quantidade_g / 100
 gorduras = gorduras_por_100g * quantidade_g / 100
 ```
 
-## 12. Implementar progresso corporal
+## 13. Implementar progresso corporal
 
 Primeira versao:
 
@@ -294,7 +338,7 @@ Depois:
 - Comparativo visual.
 - Relatorio mensal.
 
-## 13. Implementar midias dos exercicios
+## 14. Implementar midias dos exercicios
 
 Opcoes:
 
@@ -311,12 +355,13 @@ Sugestao pratica:
 
 Visualizacao 3D pode ser implementada depois com bibliotecas como Three.js via React Native WebView, ou usando assets pre-renderizados em GIF/video para simplificar o MVP.
 
-## 14. Criar relatorios e insights
+## 15. Criar relatorios e insights
 
 Depois que houver dados suficientes:
 
 - Detectar aumento ou queda de volume.
 - Detectar carga estagnada por mais de algumas semanas.
+- Detectar aumento ou queda no gasto calorico estimado por treino.
 - Comparar calorias consumidas com meta.
 - Comparar proteina consumida com meta.
 - Gerar resumo semanal.
@@ -329,7 +374,7 @@ Voce treinou pernas 1 vez nesta semana, abaixo da sua meta.
 Sua proteina ficou abaixo da meta em 5 dos ultimos 7 dias.
 ```
 
-## 15. Adicionar IA em uma fase futura
+## 16. Adicionar IA em uma fase futura
 
 Com a OpenAI API, o app pode:
 
@@ -339,15 +384,17 @@ Com a OpenAI API, o app pode:
 - Explicar tecnica de exercicios.
 - Criar relatorios semanais em linguagem natural.
 - Analisar estagnacao e sugerir ajustes.
+- Explicar por que o gasto calorico estimado subiu ou caiu conforme carga, volume, descanso e duracao.
 
 Importante: deixe claro no app que sugestoes de treino e dieta nao substituem acompanhamento profissional.
 
-## 16. Testes e qualidade
+## 17. Testes e qualidade
 
 Prioridades:
 
 - Testar calculos de calorias e macros.
 - Testar calculos de volume.
+- Testar calculos de gasto calorico estimado.
 - Testar login e sessao.
 - Testar salvamento offline ou falha de internet.
 - Testar telas em Android e iOS.
@@ -358,7 +405,7 @@ Ferramentas possiveis:
 - React Native Testing Library para componentes.
 - Expo Go para testes manuais rapidos.
 
-## 17. Publicacao
+## 18. Publicacao
 
 Primeiro publique uma versao Android interna:
 
@@ -378,7 +425,7 @@ eas build:configure
 eas build --platform android
 ```
 
-## 18. Ordem recomendada de desenvolvimento
+## 19. Ordem recomendada de desenvolvimento
 
 1. Setup do projeto com Expo.
 2. Navegacao por abas.
@@ -389,16 +436,17 @@ eas build --platform android
 7. Planilha de treino.
 8. Modo treino.
 9. Registro de cargas e series.
-10. Dashboard de carga e volume.
-11. Diario alimentar.
-12. Calculo de calorias e macros.
-13. Dashboard de dieta.
-14. Registro de peso e medidas.
-15. Fotos de evolucao.
-16. Relatorios e insights.
-17. IA e recursos premium.
+10. Calculo de volume e gasto calorico estimado.
+11. Dashboard de carga, volume e calorias estimadas no treino.
+12. Diario alimentar.
+13. Calculo de calorias e macros.
+14. Dashboard de dieta.
+15. Registro de peso e medidas.
+16. Fotos de evolucao.
+17. Relatorios e insights.
+18. IA e recursos premium.
 
-## 19. Checklist do MVP
+## 20. Checklist do MVP
 
 - [ ] Projeto Expo criado.
 - [ ] Navegacao principal criada.
@@ -410,6 +458,7 @@ eas build --platform android
 - [ ] Modo treino funcionando.
 - [ ] Historico de treino salvo.
 - [ ] Dashboard de treino inicial.
+- [ ] Gasto calorico estimado por treino.
 - [ ] Cadastro de alimentos.
 - [ ] Diario alimentar.
 - [ ] Calculo de calorias e macros.
