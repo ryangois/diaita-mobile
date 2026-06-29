@@ -1,6 +1,6 @@
-import { CheckCircle2, Clock3, Dumbbell, Flame, Minus, Pencil, Play, Plus, Target, Trash2 } from 'lucide-react-native';
+import { ArrowDown, ArrowUp, CheckCircle2, Clock3, Copy, Dumbbell, Flame, Minus, Pencil, Play, Plus, Search, Target, Trash2 } from 'lucide-react-native';
 import { useEffect, useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { ActiveWorkoutSession } from '../components/ActiveWorkoutSession';
 import { ExerciseMedia } from '../components/ExerciseMedia';
@@ -145,6 +145,8 @@ export function TrainingScreen({
   const [activeSession, setActiveSession] = useState<WorkoutSession | null>(null);
   const [finishedSession, setFinishedSession] = useState<WorkoutSession | null>(null);
   const [isEditingPlan, setIsEditingPlan] = useState(false);
+  const [exerciseSearch, setExerciseSearch] = useState('');
+  const [selectedMuscleGroup, setSelectedMuscleGroup] = useState('Todos');
   const [draftWorkout, setDraftWorkout] = useState({
     label: '',
     title: '',
@@ -164,6 +166,24 @@ export function TrainingScreen({
     return workoutDays.find((workout) => workout.id === activeWorkoutId) ?? workoutDays[0];
   }, [activeWorkoutId, workoutDays]);
   const exerciseLibrary = useMemo(() => [...baseExercises, ...customExercises], [customExercises]);
+  const muscleGroupFilters = useMemo(
+    () => ['Todos', ...Array.from(new Set(exerciseLibrary.map((exercise) => exercise.muscleGroup)))],
+    [exerciseLibrary],
+  );
+  const filteredExerciseLibrary = useMemo(() => {
+    const search = exerciseSearch.trim().toLowerCase();
+
+    return exerciseLibrary.filter((exercise) => {
+      const matchesGroup = selectedMuscleGroup === 'Todos' || exercise.muscleGroup === selectedMuscleGroup;
+      const matchesSearch =
+        !search ||
+        exercise.name.toLowerCase().includes(search) ||
+        exercise.muscleGroup.toLowerCase().includes(search) ||
+        exercise.equipment.toLowerCase().includes(search);
+
+      return matchesGroup && matchesSearch;
+    });
+  }, [exerciseLibrary, exerciseSearch, selectedMuscleGroup]);
 
   const totalSets = activeWorkout.exercises.reduce((sum, item) => sum + getWorkoutExercisePlannedSets(item).length, 0);
   const workoutVolume = calculateWorkoutVolume(activeWorkout);
@@ -190,10 +210,10 @@ export function TrainingScreen({
   }
 
   function addExerciseToWorkout(exerciseId: string) {
-    const exists = activeWorkout.exercises.some((exercise) => exercise.exerciseId === exerciseId);
+    const existingExercise = activeWorkout.exercises.find((exercise) => exercise.exerciseId === exerciseId);
 
-    if (exists) {
-      addPlannedSet(exerciseId);
+    if (existingExercise) {
+      addPlannedSet(getWorkoutExerciseKey(existingExercise));
       return;
     }
 
@@ -209,6 +229,7 @@ export function TrainingScreen({
       exercises: [
         ...activeWorkout.exercises,
         {
+          id: `workout-exercise-${Date.now()}`,
           exerciseId,
           sets: 1,
           reps: defaultSet.reps,
@@ -218,6 +239,48 @@ export function TrainingScreen({
         },
       ],
     });
+  }
+
+  function duplicateExercise(workoutExerciseKey: string) {
+    const exerciseToCopy = activeWorkout.exercises.find(
+      (exercise) => getWorkoutExerciseKey(exercise) === workoutExerciseKey,
+    );
+
+    if (!exerciseToCopy) {
+      return;
+    }
+
+    const copiedExercise = {
+      ...exerciseToCopy,
+      id: `workout-exercise-${Date.now()}`,
+      plannedSets: getWorkoutExercisePlannedSets(exerciseToCopy).map((set, index) => ({
+        ...set,
+        id: `set-${Date.now()}-${index}`,
+      })),
+    };
+
+    const sourceIndex = activeWorkout.exercises.findIndex(
+      (exercise) => getWorkoutExerciseKey(exercise) === workoutExerciseKey,
+    );
+    const nextExercises = [...activeWorkout.exercises];
+    nextExercises.splice(sourceIndex + 1, 0, copiedExercise);
+    updateActiveWorkout({ ...activeWorkout, exercises: nextExercises });
+  }
+
+  function moveExercise(workoutExerciseKey: string, direction: -1 | 1) {
+    const sourceIndex = activeWorkout.exercises.findIndex(
+      (exercise) => getWorkoutExerciseKey(exercise) === workoutExerciseKey,
+    );
+    const targetIndex = sourceIndex + direction;
+
+    if (sourceIndex < 0 || targetIndex < 0 || targetIndex >= activeWorkout.exercises.length) {
+      return;
+    }
+
+    const nextExercises = [...activeWorkout.exercises];
+    const [movedExercise] = nextExercises.splice(sourceIndex, 1);
+    nextExercises.splice(targetIndex, 0, movedExercise);
+    updateActiveWorkout({ ...activeWorkout, exercises: nextExercises });
   }
 
   function createBlankWorkout() {
@@ -282,10 +345,20 @@ export function TrainingScreen({
     });
   }
 
-  function removeExerciseFromWorkout(exerciseId: string) {
+  function askRemoveExercise(workoutExerciseKey: string, exerciseName: string) {
+    confirmAction(
+      'Apagar exercicio',
+      `Apagar ${exerciseName} e todas as series dele?`,
+      () => removeExerciseFromWorkout(workoutExerciseKey),
+    );
+  }
+
+  function removeExerciseFromWorkout(workoutExerciseKey: string) {
     updateActiveWorkout({
       ...activeWorkout,
-      exercises: activeWorkout.exercises.filter((exercise) => exercise.exerciseId !== exerciseId),
+      exercises: activeWorkout.exercises.filter(
+        (exercise) => getWorkoutExerciseKey(exercise) !== workoutExerciseKey,
+      ),
     });
   }
 
@@ -322,7 +395,7 @@ export function TrainingScreen({
   }
 
   function updatePlannedSet(
-    exerciseId: string,
+    workoutExerciseKey: string,
     setId: string,
     field: 'reps' | 'targetLoadKg' | 'restSeconds',
     value: number,
@@ -330,7 +403,7 @@ export function TrainingScreen({
     updateActiveWorkout({
       ...activeWorkout,
       exercises: activeWorkout.exercises.map((exercise) => {
-        if (exercise.exerciseId !== exerciseId) {
+        if (getWorkoutExerciseKey(exercise) !== workoutExerciseKey) {
           return exercise;
         }
 
@@ -352,26 +425,26 @@ export function TrainingScreen({
   }
 
   function bumpPlannedSet(
-    exerciseId: string,
+    workoutExerciseKey: string,
     setId: string,
     field: 'reps' | 'targetLoadKg' | 'restSeconds',
     delta: number,
   ) {
-    const exercise = activeWorkout.exercises.find((item) => item.exerciseId === exerciseId);
+    const exercise = activeWorkout.exercises.find((item) => getWorkoutExerciseKey(item) === workoutExerciseKey);
     const plannedSet = exercise ? getWorkoutExercisePlannedSets(exercise).find((set) => set.id === setId) : null;
 
     if (!plannedSet) {
       return;
     }
 
-    updatePlannedSet(exerciseId, setId, field, plannedSet[field] + delta);
+    updatePlannedSet(workoutExerciseKey, setId, field, plannedSet[field] + delta);
   }
 
-  function addPlannedSet(exerciseId: string) {
+  function addPlannedSet(workoutExerciseKey: string) {
     updateActiveWorkout({
       ...activeWorkout,
       exercises: activeWorkout.exercises.map((exercise) => {
-        if (exercise.exerciseId !== exerciseId) {
+        if (getWorkoutExerciseKey(exercise) !== workoutExerciseKey) {
           return exercise;
         }
 
@@ -393,11 +466,75 @@ export function TrainingScreen({
     });
   }
 
-  function removePlannedSet(exerciseId: string, setId: string) {
+  function duplicatePlannedSet(workoutExerciseKey: string, setId: string) {
     updateActiveWorkout({
       ...activeWorkout,
       exercises: activeWorkout.exercises.map((exercise) => {
-        if (exercise.exerciseId !== exerciseId) {
+        if (getWorkoutExerciseKey(exercise) !== workoutExerciseKey) {
+          return exercise;
+        }
+
+        const currentSets = getWorkoutExercisePlannedSets(exercise);
+        const sourceIndex = currentSets.findIndex((set) => set.id === setId);
+
+        if (sourceIndex < 0) {
+          return exercise;
+        }
+
+        const copiedSet: WorkoutPlannedSet = {
+          ...currentSets[sourceIndex],
+          id: `set-${Date.now()}`,
+        };
+        const plannedSets = [...currentSets];
+        plannedSets.splice(sourceIndex + 1, 0, copiedSet);
+
+        return {
+          ...exercise,
+          ...syncExerciseFromPlannedSets(plannedSets),
+        };
+      }),
+    });
+  }
+
+  function movePlannedSet(workoutExerciseKey: string, setId: string, direction: -1 | 1) {
+    updateActiveWorkout({
+      ...activeWorkout,
+      exercises: activeWorkout.exercises.map((exercise) => {
+        if (getWorkoutExerciseKey(exercise) !== workoutExerciseKey) {
+          return exercise;
+        }
+
+        const currentSets = getWorkoutExercisePlannedSets(exercise);
+        const sourceIndex = currentSets.findIndex((set) => set.id === setId);
+        const targetIndex = sourceIndex + direction;
+
+        if (sourceIndex < 0 || targetIndex < 0 || targetIndex >= currentSets.length) {
+          return exercise;
+        }
+
+        const plannedSets = [...currentSets];
+        const [movedSet] = plannedSets.splice(sourceIndex, 1);
+        plannedSets.splice(targetIndex, 0, movedSet);
+
+        return {
+          ...exercise,
+          ...syncExerciseFromPlannedSets(plannedSets),
+        };
+      }),
+    });
+  }
+
+  function askRemovePlannedSet(workoutExerciseKey: string, setId: string) {
+    confirmAction('Apagar serie', 'Apagar esta serie do exercicio?', () =>
+      removePlannedSet(workoutExerciseKey, setId),
+    );
+  }
+
+  function removePlannedSet(workoutExerciseKey: string, setId: string) {
+    updateActiveWorkout({
+      ...activeWorkout,
+      exercises: activeWorkout.exercises.map((exercise) => {
+        if (getWorkoutExerciseKey(exercise) !== workoutExerciseKey) {
           return exercise;
         }
 
@@ -677,16 +814,17 @@ export function TrainingScreen({
       </View>
 
       <SectionTitle title={`Treino ${activeWorkout.label}`} />
-      {activeWorkout.exercises.map((plannedExercise) => {
+      {activeWorkout.exercises.map((plannedExercise, exerciseIndex) => {
         const exercise = findExerciseById(plannedExercise.exerciseId, exerciseLibrary);
         const plannedSets = getWorkoutExercisePlannedSets(plannedExercise);
+        const workoutExerciseKey = getWorkoutExerciseKey(plannedExercise);
 
         if (!exercise) {
           return null;
         }
 
         return (
-            <View key={plannedExercise.exerciseId} style={[styles.listCard, isEditingPlan && styles.editableListCard]}>
+            <View key={workoutExerciseKey} style={[styles.listCard, isEditingPlan && styles.editableListCard]}>
               <ExerciseMedia exercise={exercise} />
               <View style={styles.listBody}>
                 <Text style={styles.cardTitle}>{exercise.name}</Text>
@@ -702,16 +840,23 @@ export function TrainingScreen({
                 <View style={styles.seriesHeader}>
                   <Text style={styles.seriesTitle}>Series do exercicio</Text>
                   <View style={styles.actionRow}>
+                    <IconButton icon={ArrowUp} onPress={() => moveExercise(workoutExerciseKey, -1)} disabled={exerciseIndex === 0} />
+                    <IconButton
+                      icon={ArrowDown}
+                      onPress={() => moveExercise(workoutExerciseKey, 1)}
+                      disabled={exerciseIndex === activeWorkout.exercises.length - 1}
+                    />
+                    <IconButton icon={Copy} onPress={() => duplicateExercise(workoutExerciseKey)} />
                     <Pressable
                       style={styles.addSeriesButton}
-                      onPress={() => addPlannedSet(exercise.id)}
+                      onPress={() => addPlannedSet(workoutExerciseKey)}
                       accessibilityRole="button"
                       accessibilityLabel={`Adicionar serie em ${exercise.name}`}
                     >
                       <Plus size={15} color={colors.primary} />
                       <Text style={styles.addSeriesText}>Serie</Text>
                     </Pressable>
-                    <IconButton icon={Trash2} onPress={() => removeExerciseFromWorkout(exercise.id)} />
+                    <IconButton icon={Trash2} onPress={() => askRemoveExercise(workoutExerciseKey, exercise.name)} />
                   </View>
                 </View>
                 {plannedSets.map((plannedSet, index) => (
@@ -721,27 +866,36 @@ export function TrainingScreen({
                       label="Reps"
                       value={plannedSet.reps}
                       suffix="rep"
-                      onDecrease={() => bumpPlannedSet(exercise.id, plannedSet.id, 'reps', -1)}
-                      onIncrease={() => bumpPlannedSet(exercise.id, plannedSet.id, 'reps', 1)}
-                      onChange={(value) => updatePlannedSet(exercise.id, plannedSet.id, 'reps', value)}
+                      onDecrease={() => bumpPlannedSet(workoutExerciseKey, plannedSet.id, 'reps', -1)}
+                      onIncrease={() => bumpPlannedSet(workoutExerciseKey, plannedSet.id, 'reps', 1)}
+                      onChange={(value) => updatePlannedSet(workoutExerciseKey, plannedSet.id, 'reps', value)}
                     />
                     <PlanNumberControl
                       label="Carga"
                       value={plannedSet.targetLoadKg}
                       suffix="kg"
-                      onDecrease={() => bumpPlannedSet(exercise.id, plannedSet.id, 'targetLoadKg', -2.5)}
-                      onIncrease={() => bumpPlannedSet(exercise.id, plannedSet.id, 'targetLoadKg', 2.5)}
-                      onChange={(value) => updatePlannedSet(exercise.id, plannedSet.id, 'targetLoadKg', value)}
+                      onDecrease={() => bumpPlannedSet(workoutExerciseKey, plannedSet.id, 'targetLoadKg', -2.5)}
+                      onIncrease={() => bumpPlannedSet(workoutExerciseKey, plannedSet.id, 'targetLoadKg', 2.5)}
+                      onChange={(value) => updatePlannedSet(workoutExerciseKey, plannedSet.id, 'targetLoadKg', value)}
                     />
                     <PlanNumberControl
                       label="Descanso"
                       value={plannedSet.restSeconds}
                       suffix="s"
-                      onDecrease={() => bumpPlannedSet(exercise.id, plannedSet.id, 'restSeconds', -15)}
-                      onIncrease={() => bumpPlannedSet(exercise.id, plannedSet.id, 'restSeconds', 15)}
-                      onChange={(value) => updatePlannedSet(exercise.id, plannedSet.id, 'restSeconds', value)}
+                      onDecrease={() => bumpPlannedSet(workoutExerciseKey, plannedSet.id, 'restSeconds', -15)}
+                      onIncrease={() => bumpPlannedSet(workoutExerciseKey, plannedSet.id, 'restSeconds', 15)}
+                      onChange={(value) => updatePlannedSet(workoutExerciseKey, plannedSet.id, 'restSeconds', value)}
                     />
-                    <IconButton icon={Trash2} onPress={() => removePlannedSet(exercise.id, plannedSet.id)} />
+                    <View style={styles.setActionGroup}>
+                      <IconButton icon={ArrowUp} onPress={() => movePlannedSet(workoutExerciseKey, plannedSet.id, -1)} disabled={index === 0} />
+                      <IconButton
+                        icon={ArrowDown}
+                        onPress={() => movePlannedSet(workoutExerciseKey, plannedSet.id, 1)}
+                        disabled={index === plannedSets.length - 1}
+                      />
+                      <IconButton icon={Copy} onPress={() => duplicatePlannedSet(workoutExerciseKey, plannedSet.id)} />
+                      <IconButton icon={Trash2} onPress={() => askRemovePlannedSet(workoutExerciseKey, plannedSet.id)} disabled={plannedSets.length <= 1} />
+                    </View>
                   </View>
                 ))}
               </View>
@@ -845,8 +999,41 @@ export function TrainingScreen({
           </Pressable>
         </View>
       )}
+      {isEditingPlan && (
+        <View style={styles.libraryTools}>
+          <View style={styles.searchBox}>
+            <Search size={18} color={colors.primaryMid} />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Buscar exercicio, musculo ou equipamento"
+              placeholderTextColor={colors.muted}
+              value={exerciseSearch}
+              onChangeText={setExerciseSearch}
+            />
+          </View>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterChips}>
+            {muscleGroupFilters.map((muscleGroup) => {
+              const isSelected = muscleGroup === selectedMuscleGroup;
+
+              return (
+                <Pressable
+                  key={muscleGroup}
+                  style={[styles.filterChip, isSelected && styles.activeFilterChip]}
+                  onPress={() => setSelectedMuscleGroup(muscleGroup)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Filtrar ${muscleGroup}`}
+                >
+                  <Text style={[styles.filterChipText, isSelected && styles.activeFilterChipText]}>
+                    {muscleGroup}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        </View>
+      )}
       <View style={styles.libraryGrid}>
-        {exerciseLibrary.map((exercise) => {
+        {filteredExerciseLibrary.map((exercise) => {
           const alreadyAdded = activeWorkout.exercises.some((plannedExercise) => plannedExercise.exerciseId === exercise.id);
 
           return (
@@ -873,6 +1060,12 @@ export function TrainingScreen({
             </View>
           );
         })}
+        {filteredExerciseLibrary.length === 0 && (
+          <View style={styles.emptyLibrary}>
+            <Text style={styles.cardTitle}>Nenhum exercicio encontrado</Text>
+            <Text style={styles.cardText}>Limpe a busca ou crie um exercicio personalizado acima.</Text>
+          </View>
+        )}
       </View>
     </>
   );
@@ -880,6 +1073,24 @@ export function TrainingScreen({
 
 function findExerciseById(exerciseId: string, exerciseLibrary: Exercise[]) {
   return exerciseLibrary.find((exercise) => exercise.id === exerciseId) ?? getExerciseById(exerciseId);
+}
+
+function getWorkoutExerciseKey(exercise: WorkoutDay['exercises'][number]) {
+  return exercise.id ?? exercise.exerciseId;
+}
+
+function confirmAction(title: string, message: string, onConfirm: () => void) {
+  if (typeof window !== 'undefined' && typeof window.confirm === 'function') {
+    if (window.confirm(message)) {
+      onConfirm();
+    }
+    return;
+  }
+
+  Alert.alert(title, message, [
+    { text: 'Cancelar', style: 'cancel' },
+    { text: 'Apagar', style: 'destructive', onPress: onConfirm },
+  ]);
 }
 
 function nextWorkoutLabel(workoutCount: number) {
@@ -936,10 +1147,21 @@ function clampExerciseValue(field: 'sets' | 'reps' | 'targetLoadKg' | 'restSecon
   return Math.max(1, Math.round(value));
 }
 
-function IconButton({ icon: Icon, onPress }: { icon: typeof Plus; onPress: () => void }) {
+function IconButton({
+  disabled = false,
+  icon: Icon,
+  onPress,
+}: {
+  disabled?: boolean;
+  icon: typeof Plus;
+  onPress: () => void;
+}) {
   return (
-    <Pressable style={styles.smallIconButton} onPress={onPress}>
-      <Icon size={15} color={colors.primary} />
+    <Pressable
+      style={[styles.smallIconButton, disabled && styles.disabledIconButton]}
+      onPress={disabled ? undefined : onPress}
+    >
+      <Icon size={15} color={disabled ? colors.muted : colors.primary} />
     </Pressable>
   );
 }
@@ -1400,6 +1622,11 @@ const styles = StyleSheet.create({
     padding: 8,
     width: '100%',
   },
+  setActionGroup: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 5,
+  },
   seriesNumber: {
     color: colors.primary,
     fontSize: 14,
@@ -1470,8 +1697,51 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     width: 26,
   },
+  disabledIconButton: {
+    backgroundColor: colors.background,
+  },
   libraryGrid: {
     gap: 10,
+  },
+  libraryTools: {
+    gap: 10,
+    marginBottom: 10,
+  },
+  searchBox: {
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderRadius: radii.md,
+    flexDirection: 'row',
+    gap: 8,
+    minHeight: 46,
+    paddingHorizontal: 12,
+  },
+  searchInput: {
+    color: colors.text,
+    flex: 1,
+    fontSize: 14,
+  },
+  filterChips: {
+    gap: 8,
+    paddingRight: 20,
+  },
+  filterChip: {
+    backgroundColor: colors.surface,
+    borderRadius: radii.md,
+    justifyContent: 'center',
+    minHeight: 36,
+    paddingHorizontal: 12,
+  },
+  activeFilterChip: {
+    backgroundColor: colors.primary,
+  },
+  filterChipText: {
+    color: colors.primary,
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  activeFilterChipText: {
+    color: colors.surface,
   },
   libraryHint: {
     color: colors.primaryMid,
@@ -1515,5 +1785,10 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 17,
     marginTop: 8,
+  },
+  emptyLibrary: {
+    backgroundColor: colors.surface,
+    borderRadius: radii.md,
+    padding: 14,
   },
 });

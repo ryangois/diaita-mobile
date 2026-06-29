@@ -25,6 +25,7 @@ export type Exercise = {
 };
 
 export type WorkoutExercise = {
+  id?: string;
   exerciseId: string;
   sets: number;
   reps: number;
