@@ -1,6 +1,6 @@
-import { Apple, Check, ChevronDown, ChevronUp, Minus, Plus, Search, Utensils } from 'lucide-react-native';
+import { Apple, Check, ChevronDown, ChevronUp, Minus, Pencil, Plus, Save, Search, Trash2, Utensils, X } from 'lucide-react-native';
 import { useEffect, useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { SectionTitle } from '../components/SectionTitle';
 import { colors, radii } from '../styles/theme';
@@ -25,6 +25,8 @@ export function DietScreen({ foods, isLoaded, meals, onFoodsChange, onMealsChang
   const [selectedCategory, setSelectedCategory] = useState('Todos');
   const [foodSearch, setFoodSearch] = useState('');
   const [showManualFoodForm, setShowManualFoodForm] = useState(false);
+  const [editingMealId, setEditingMealId] = useState<string | null>(null);
+  const [mealNameDraft, setMealNameDraft] = useState('');
   const [lastAction, setLastAction] = useState('Dados sincronizados localmente.');
   const [draftFood, setDraftFood] = useState({
     name: '',
@@ -78,6 +80,60 @@ export function DietScreen({ foods, isLoaded, meals, onFoodsChange, onMealsChang
     onMealsChange([...meals, newMeal]);
     setSelectedMealId(newMeal.id);
     setLastAction(`${newMeal.name} criada e selecionada.`);
+  }
+
+  function startEditingMeal(meal: Meal) {
+    setEditingMealId(meal.id);
+    setMealNameDraft(meal.name);
+  }
+
+  function cancelEditingMeal() {
+    setEditingMealId(null);
+    setMealNameDraft('');
+  }
+
+  function saveMealName(mealId: string) {
+    const mealName = mealNameDraft.trim();
+
+    if (!mealName) {
+      return;
+    }
+
+    onMealsChange(meals.map((meal) => (meal.id === mealId ? { ...meal, name: mealName } : meal)));
+    setEditingMealId(null);
+    setMealNameDraft('');
+    setLastAction(`Refeicao renomeada para ${mealName}.`);
+  }
+
+  function askDeleteMeal(meal: Meal) {
+    if (meals.length <= 1) {
+      setLastAction('Mantenha pelo menos uma refeicao para adicionar alimentos.');
+      return;
+    }
+
+    const message = `Apagar ${meal.name} e todos os alimentos dela?`;
+
+    if (typeof window !== 'undefined' && typeof window.confirm === 'function') {
+      if (window.confirm(message)) {
+        deleteMeal(meal);
+      }
+      return;
+    }
+
+    Alert.alert('Apagar refeicao', message, [
+      { text: 'Cancelar', style: 'cancel' },
+      { text: 'Apagar', style: 'destructive', onPress: () => deleteMeal(meal) },
+    ]);
+  }
+
+  function deleteMeal(mealToDelete: Meal) {
+    const nextMeals = meals.filter((meal) => meal.id !== mealToDelete.id);
+    const nextSelectedMeal = selectedMealId === mealToDelete.id ? nextMeals[0]?.id : selectedMealId;
+
+    onMealsChange(nextMeals);
+    setSelectedMealId(nextSelectedMeal ?? '');
+    cancelEditingMeal();
+    setLastAction(`${mealToDelete.name} apagada.`);
   }
 
   function addFoodToSelectedMeal(food: Food) {
@@ -249,12 +305,63 @@ export function DietScreen({ foods, isLoaded, meals, onFoodsChange, onMealsChang
               <Utensils size={22} color={colors.secondary} />
             </View>
             <View style={styles.listBody}>
-              <Text style={styles.cardTitle}>{meal.name}</Text>
+              {editingMealId === meal.id ? (
+                <TextInput
+                  autoFocus
+                  style={styles.mealNameInput}
+                  value={mealNameDraft}
+                  onChangeText={setMealNameDraft}
+                  onSubmitEditing={() => saveMealName(meal.id)}
+                />
+              ) : (
+                <Text style={styles.cardTitle}>{meal.name}</Text>
+              )}
               <Text style={styles.cardText}>
                 {meal.totals.protein}g prot - {meal.totals.carbs}g carb - {meal.totals.fat}g gord
               </Text>
             </View>
-            <Text style={styles.loadText}>{meal.totals.calories}</Text>
+            <View style={styles.mealActions}>
+              <Text style={styles.loadText}>{meal.totals.calories}</Text>
+              {editingMealId === meal.id ? (
+                <View style={styles.actionRow}>
+                  <Pressable
+                    style={styles.mealActionButton}
+                    onPress={() => saveMealName(meal.id)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Salvar nome de ${meal.name}`}
+                  >
+                    <Save size={15} color={colors.primary} />
+                  </Pressable>
+                  <Pressable
+                    style={styles.mealActionButton}
+                    onPress={cancelEditingMeal}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Cancelar edicao de ${meal.name}`}
+                  >
+                    <X size={15} color={colors.primary} />
+                  </Pressable>
+                </View>
+              ) : (
+                <View style={styles.actionRow}>
+                  <Pressable
+                    style={styles.mealActionButton}
+                    onPress={() => startEditingMeal(meal)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Editar nome de ${meal.name}`}
+                  >
+                    <Pencil size={15} color={colors.primary} />
+                  </Pressable>
+                  <Pressable
+                    style={styles.deleteMealButton}
+                    onPress={() => askDeleteMeal(meal)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Apagar ${meal.name}`}
+                  >
+                    <Trash2 size={15} color={colors.secondary} />
+                  </Pressable>
+                </View>
+              )}
+            </View>
           </View>
 
           <View style={styles.foodRows}>
@@ -602,6 +709,39 @@ const styles = StyleSheet.create({
   mealHeader: {
     alignItems: 'center',
     flexDirection: 'row',
+  },
+  mealActions: {
+    alignItems: 'flex-end',
+    gap: 7,
+  },
+  actionRow: {
+    flexDirection: 'row',
+    gap: 6,
+  },
+  mealActionButton: {
+    alignItems: 'center',
+    backgroundColor: colors.primarySoft,
+    borderRadius: radii.sm,
+    height: 30,
+    justifyContent: 'center',
+    width: 30,
+  },
+  deleteMealButton: {
+    alignItems: 'center',
+    backgroundColor: colors.secondarySoft,
+    borderRadius: radii.sm,
+    height: 30,
+    justifyContent: 'center',
+    width: 30,
+  },
+  mealNameInput: {
+    backgroundColor: colors.background,
+    borderRadius: radii.sm,
+    color: colors.text,
+    fontSize: 16,
+    fontWeight: '800',
+    minHeight: 36,
+    paddingHorizontal: 10,
   },
   foodIcon: {
     alignItems: 'center',
