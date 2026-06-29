@@ -9,18 +9,34 @@ export function createWorkoutSession(workout: WorkoutDay): WorkoutSession {
     currentExerciseIndex: 0,
     currentSetIndex: 0,
     setLogs: workout.exercises.flatMap((exercise) => {
-      return Array.from({ length: exercise.sets }, (_, index): WorkoutSetLog => ({
-        id: `${exercise.exerciseId}-${index + 1}`,
+      const plannedSets = getWorkoutExercisePlannedSets(exercise);
+
+      return plannedSets.map((plannedSet, index): WorkoutSetLog => ({
+        id: `${exercise.exerciseId}-${index + 1}-${plannedSet.id}`,
         exerciseId: exercise.exerciseId,
         setNumber: index + 1,
-        targetReps: exercise.reps,
-        targetLoadKg: exercise.targetLoadKg,
-        actualReps: exercise.reps,
-        actualLoadKg: exercise.targetLoadKg,
+        targetReps: plannedSet.reps,
+        targetLoadKg: plannedSet.targetLoadKg,
+        targetRestSeconds: plannedSet.restSeconds,
+        actualReps: plannedSet.reps,
+        actualLoadKg: plannedSet.targetLoadKg,
         completed: false,
       }));
     }),
   };
+}
+
+export function getWorkoutExercisePlannedSets(exercise: WorkoutDay['exercises'][number]) {
+  if (exercise.plannedSets && exercise.plannedSets.length > 0) {
+    return exercise.plannedSets;
+  }
+
+  return Array.from({ length: exercise.sets }, (_, index) => ({
+    id: `set-${index + 1}`,
+    reps: exercise.reps,
+    targetLoadKg: exercise.targetLoadKg,
+    restSeconds: exercise.restSeconds,
+  }));
 }
 
 export function getExerciseSetLogs(session: WorkoutSession, exerciseId: string) {

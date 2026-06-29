@@ -30,6 +30,14 @@ export type WorkoutExercise = {
   reps: number;
   targetLoadKg: number;
   restSeconds: number;
+  plannedSets?: WorkoutPlannedSet[];
+};
+
+export type WorkoutPlannedSet = {
+  id: string;
+  reps: number;
+  targetLoadKg: number;
+  restSeconds: number;
 };
 
 export type CalorieSource = 'manual' | 'harris_benedict' | 'workout_estimate' | 'wearable';
@@ -60,6 +68,7 @@ export type WorkoutSetLog = {
   setNumber: number;
   targetReps: number;
   targetLoadKg: number;
+  targetRestSeconds: number;
   actualReps: number;
   actualLoadKg: number;
   completed: boolean;

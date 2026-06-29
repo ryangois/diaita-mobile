@@ -139,7 +139,7 @@ export function ActiveWorkoutSession({
       ),
     };
 
-    setRestSeconds(currentWorkoutExercise.restSeconds);
+    setRestSeconds(currentSet.targetRestSeconds);
     setTransitionMessage(
       `Serie ${session.currentSetIndex + 1} concluida. Descanso antes de avancar.`,
     );

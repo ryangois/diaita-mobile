@@ -1,4 +1,5 @@
 import type { CalorieSource, WorkoutCalorieEntry, WorkoutDay } from '../types';
+import { getWorkoutExercisePlannedSets } from './workoutSession';
 
 type UserProfileForCalories = {
   age: number;
@@ -23,7 +24,9 @@ export const calorieSourceLabels: Record<CalorieSource, string> = {
 
 export function calculateWorkoutVolume(workout: WorkoutDay) {
   return workout.exercises.reduce((total, exercise) => {
-    return total + exercise.sets * exercise.reps * exercise.targetLoadKg;
+    return total + getWorkoutExercisePlannedSets(exercise).reduce((setTotal, set) => {
+      return setTotal + set.reps * set.targetLoadKg;
+    }, 0);
   }, 0);
 }
 

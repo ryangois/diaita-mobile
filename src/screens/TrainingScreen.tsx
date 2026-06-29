@@ -16,8 +16,9 @@ import {
   calculateSessionVolume,
   countCompletedSets,
   createWorkoutSession,
+  getWorkoutExercisePlannedSets,
 } from '../utils/workoutSession';
-import type { Exercise, UserProfile, WorkoutDay, WorkoutSession } from '../types';
+import type { Exercise, UserProfile, WorkoutDay, WorkoutPlannedSet, WorkoutSession } from '../types';
 
 type TrainingTemplate = {
   key: string;
@@ -164,7 +165,7 @@ export function TrainingScreen({
   }, [activeWorkoutId, workoutDays]);
   const exerciseLibrary = useMemo(() => [...baseExercises, ...customExercises], [customExercises]);
 
-  const totalSets = activeWorkout.exercises.reduce((sum, item) => sum + item.sets, 0);
+  const totalSets = activeWorkout.exercises.reduce((sum, item) => sum + getWorkoutExercisePlannedSets(item).length, 0);
   const workoutVolume = calculateWorkoutVolume(activeWorkout);
   const selectedCalories = getSelectedWorkoutCalories(activeWorkout, profile);
   const calorieOptions = getWorkoutCalorieOptions(activeWorkout, profile);
@@ -192,14 +193,29 @@ export function TrainingScreen({
     const exists = activeWorkout.exercises.some((exercise) => exercise.exerciseId === exerciseId);
 
     if (exists) {
+      addPlannedSet(exerciseId);
       return;
     }
+
+    const defaultSet = {
+      id: `set-${Date.now()}`,
+      reps: 10,
+      targetLoadKg: 30,
+      restSeconds: 75,
+    };
 
     updateActiveWorkout({
       ...activeWorkout,
       exercises: [
         ...activeWorkout.exercises,
-        { exerciseId, sets: 3, reps: 10, targetLoadKg: 30, restSeconds: 75 },
+        {
+          exerciseId,
+          sets: 1,
+          reps: defaultSet.reps,
+          targetLoadKg: defaultSet.targetLoadKg,
+          restSeconds: defaultSet.restSeconds,
+          plannedSets: [defaultSet],
+        },
       ],
     });
   }
@@ -288,6 +304,109 @@ export function TrainingScreen({
         return {
           ...exercise,
           [field]: clampExerciseValue(field, value),
+        };
+      }),
+    });
+  }
+
+  function syncExerciseFromPlannedSets(plannedSets: WorkoutPlannedSet[]) {
+    const firstSet = plannedSets[0];
+
+    return {
+      sets: plannedSets.length,
+      reps: firstSet?.reps ?? 1,
+      targetLoadKg: firstSet?.targetLoadKg ?? 0,
+      restSeconds: firstSet?.restSeconds ?? 60,
+      plannedSets,
+    };
+  }
+
+  function updatePlannedSet(
+    exerciseId: string,
+    setId: string,
+    field: 'reps' | 'targetLoadKg' | 'restSeconds',
+    value: number,
+  ) {
+    updateActiveWorkout({
+      ...activeWorkout,
+      exercises: activeWorkout.exercises.map((exercise) => {
+        if (exercise.exerciseId !== exerciseId) {
+          return exercise;
+        }
+
+        const plannedSets = getWorkoutExercisePlannedSets(exercise).map((set) => {
+          if (set.id !== setId) {
+            return set;
+          }
+
+          const clampField = field === 'targetLoadKg' ? 'targetLoadKg' : field === 'restSeconds' ? 'restSeconds' : 'reps';
+          return { ...set, [field]: clampExerciseValue(clampField, value) };
+        });
+
+        return {
+          ...exercise,
+          ...syncExerciseFromPlannedSets(plannedSets),
+        };
+      }),
+    });
+  }
+
+  function bumpPlannedSet(
+    exerciseId: string,
+    setId: string,
+    field: 'reps' | 'targetLoadKg' | 'restSeconds',
+    delta: number,
+  ) {
+    const exercise = activeWorkout.exercises.find((item) => item.exerciseId === exerciseId);
+    const plannedSet = exercise ? getWorkoutExercisePlannedSets(exercise).find((set) => set.id === setId) : null;
+
+    if (!plannedSet) {
+      return;
+    }
+
+    updatePlannedSet(exerciseId, setId, field, plannedSet[field] + delta);
+  }
+
+  function addPlannedSet(exerciseId: string) {
+    updateActiveWorkout({
+      ...activeWorkout,
+      exercises: activeWorkout.exercises.map((exercise) => {
+        if (exercise.exerciseId !== exerciseId) {
+          return exercise;
+        }
+
+        const currentSets = getWorkoutExercisePlannedSets(exercise);
+        const previousSet = currentSets[currentSets.length - 1];
+        const nextSet: WorkoutPlannedSet = {
+          id: `set-${Date.now()}`,
+          reps: previousSet?.reps ?? exercise.reps,
+          targetLoadKg: previousSet?.targetLoadKg ?? exercise.targetLoadKg,
+          restSeconds: previousSet?.restSeconds ?? exercise.restSeconds,
+        };
+        const plannedSets = [...currentSets, nextSet];
+
+        return {
+          ...exercise,
+          ...syncExerciseFromPlannedSets(plannedSets),
+        };
+      }),
+    });
+  }
+
+  function removePlannedSet(exerciseId: string, setId: string) {
+    updateActiveWorkout({
+      ...activeWorkout,
+      exercises: activeWorkout.exercises.map((exercise) => {
+        if (exercise.exerciseId !== exerciseId) {
+          return exercise;
+        }
+
+        const currentSets = getWorkoutExercisePlannedSets(exercise);
+        const plannedSets = currentSets.length > 1 ? currentSets.filter((set) => set.id !== setId) : currentSets;
+
+        return {
+          ...exercise,
+          ...syncExerciseFromPlannedSets(plannedSets),
         };
       }),
     });
@@ -560,6 +679,7 @@ export function TrainingScreen({
       <SectionTitle title={`Treino ${activeWorkout.label}`} />
       {activeWorkout.exercises.map((plannedExercise) => {
         const exercise = findExerciseById(plannedExercise.exerciseId, exerciseLibrary);
+        const plannedSets = getWorkoutExercisePlannedSets(plannedExercise);
 
         if (!exercise) {
           return null;
@@ -571,57 +691,80 @@ export function TrainingScreen({
               <View style={styles.listBody}>
                 <Text style={styles.cardTitle}>{exercise.name}</Text>
               <Text style={styles.cardText}>
-                {plannedExercise.sets} series x {plannedExercise.reps} reps
+                {plannedSets.length} series planejadas
               </Text>
               <Text style={styles.smallSignal}>
-                {exercise.muscleGroup} - {plannedExercise.restSeconds}s descanso
+                {exercise.muscleGroup} - {plannedExercise.targetLoadKg} kg base
               </Text>
             </View>
             {isEditingPlan ? (
               <View style={styles.planControlsWide}>
-                <PlanNumberControl
-                  label="Series"
-                  value={plannedExercise.sets}
-                  suffix="x"
-                  onDecrease={() => bumpExercisePlan(exercise.id, 'sets', -1)}
-                  onIncrease={() => bumpExercisePlan(exercise.id, 'sets', 1)}
-                  onChange={(value) => updateExercisePlan(exercise.id, 'sets', value)}
-                />
-                <PlanNumberControl
-                  label="Reps"
-                  value={plannedExercise.reps}
-                  suffix="rep"
-                  onDecrease={() => bumpExercisePlan(exercise.id, 'reps', -1)}
-                  onIncrease={() => bumpExercisePlan(exercise.id, 'reps', 1)}
-                  onChange={(value) => updateExercisePlan(exercise.id, 'reps', value)}
-                />
-                <PlanNumberControl
-                  label="Carga"
-                  value={plannedExercise.targetLoadKg}
-                  suffix="kg"
-                  onDecrease={() => bumpExercisePlan(exercise.id, 'targetLoadKg', -2.5)}
-                  onIncrease={() => bumpExercisePlan(exercise.id, 'targetLoadKg', 2.5)}
-                  onChange={(value) => updateExercisePlan(exercise.id, 'targetLoadKg', value)}
-                />
-                <PlanNumberControl
-                  label="Descanso"
-                  value={plannedExercise.restSeconds}
-                  suffix="s"
-                  onDecrease={() => bumpExercisePlan(exercise.id, 'restSeconds', -15)}
-                  onIncrease={() => bumpExercisePlan(exercise.id, 'restSeconds', 15)}
-                  onChange={(value) => updateExercisePlan(exercise.id, 'restSeconds', value)}
-                />
-                <IconButton icon={Trash2} onPress={() => removeExerciseFromWorkout(exercise.id)} />
+                <View style={styles.seriesHeader}>
+                  <Text style={styles.seriesTitle}>Series do exercicio</Text>
+                  <View style={styles.actionRow}>
+                    <Pressable
+                      style={styles.addSeriesButton}
+                      onPress={() => addPlannedSet(exercise.id)}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Adicionar serie em ${exercise.name}`}
+                    >
+                      <Plus size={15} color={colors.primary} />
+                      <Text style={styles.addSeriesText}>Serie</Text>
+                    </Pressable>
+                    <IconButton icon={Trash2} onPress={() => removeExerciseFromWorkout(exercise.id)} />
+                  </View>
+                </View>
+                {plannedSets.map((plannedSet, index) => (
+                  <View key={plannedSet.id} style={styles.seriesRow}>
+                    <Text style={styles.seriesNumber}>{index + 1}</Text>
+                    <PlanNumberControl
+                      label="Reps"
+                      value={plannedSet.reps}
+                      suffix="rep"
+                      onDecrease={() => bumpPlannedSet(exercise.id, plannedSet.id, 'reps', -1)}
+                      onIncrease={() => bumpPlannedSet(exercise.id, plannedSet.id, 'reps', 1)}
+                      onChange={(value) => updatePlannedSet(exercise.id, plannedSet.id, 'reps', value)}
+                    />
+                    <PlanNumberControl
+                      label="Carga"
+                      value={plannedSet.targetLoadKg}
+                      suffix="kg"
+                      onDecrease={() => bumpPlannedSet(exercise.id, plannedSet.id, 'targetLoadKg', -2.5)}
+                      onIncrease={() => bumpPlannedSet(exercise.id, plannedSet.id, 'targetLoadKg', 2.5)}
+                      onChange={(value) => updatePlannedSet(exercise.id, plannedSet.id, 'targetLoadKg', value)}
+                    />
+                    <PlanNumberControl
+                      label="Descanso"
+                      value={plannedSet.restSeconds}
+                      suffix="s"
+                      onDecrease={() => bumpPlannedSet(exercise.id, plannedSet.id, 'restSeconds', -15)}
+                      onIncrease={() => bumpPlannedSet(exercise.id, plannedSet.id, 'restSeconds', 15)}
+                      onChange={(value) => updatePlannedSet(exercise.id, plannedSet.id, 'restSeconds', value)}
+                    />
+                    <IconButton icon={Trash2} onPress={() => removePlannedSet(exercise.id, plannedSet.id)} />
+                  </View>
+                ))}
               </View>
             ) : (
-              <Text style={styles.loadText}>{plannedExercise.targetLoadKg} kg</Text>
+              <Text style={styles.loadText}>{plannedSets.length} series</Text>
+            )}
+            {!isEditingPlan && (
+              <View style={styles.seriesPreview}>
+                {plannedSets.map((plannedSet, index) => (
+                  <View key={plannedSet.id} style={styles.seriesPreviewChip}>
+                    <Text style={styles.seriesPreviewText}>
+                      {index + 1}. {plannedSet.reps} rep - {plannedSet.targetLoadKg} kg
+                    </Text>
+                  </View>
+                ))}
+              </View>
             )}
           </View>
         );
       })}
 
       <SectionTitle title="Biblioteca" />
-      {isEditingPlan && <Text style={styles.libraryHint}>Toque no + para colocar o exercicio no treino {activeWorkout.label}.</Text>}
+      {isEditingPlan && <Text style={styles.libraryHint}>Toque no + para adicionar o exercicio. Se ele ja estiver no treino, o + adiciona uma nova serie.</Text>}
       {isEditingPlan && (
         <View style={styles.creationPanel}>
           <Text style={styles.creationTitle}>Criar exercicio</Text>
@@ -721,9 +864,10 @@ export function TrainingScreen({
                   style={[styles.addExerciseButton, alreadyAdded && styles.addedExerciseButton]}
                   onPress={() => addExerciseToWorkout(exercise.id)}
                   accessibilityRole="button"
-                  accessibilityLabel={`Adicionar ${exercise.name}`}
+                  accessibilityLabel={alreadyAdded ? `Adicionar serie em ${exercise.name}` : `Adicionar ${exercise.name}`}
                 >
                   <Plus size={18} color={alreadyAdded ? colors.muted : colors.primary} />
+                  {alreadyAdded && <Text style={styles.addedExerciseText}>Serie</Text>}
                 </Pressable>
               )}
             </View>
@@ -1211,18 +1355,84 @@ const styles = StyleSheet.create({
   planControlsWide: {
     borderTopColor: colors.border,
     borderTopWidth: 1,
-    flexDirection: 'row',
-    flexWrap: 'wrap',
     gap: 8,
     marginTop: 12,
     paddingTop: 12,
     width: '100%',
   },
-  planControlBox: {
+  seriesHeader: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    width: '100%',
+  },
+  seriesTitle: {
+    color: colors.primary,
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  actionRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 6,
+  },
+  addSeriesButton: {
+    alignItems: 'center',
+    backgroundColor: colors.primarySoft,
+    borderRadius: radii.sm,
+    flexDirection: 'row',
+    gap: 4,
+    minHeight: 28,
+    paddingHorizontal: 8,
+  },
+  addSeriesText: {
+    color: colors.primary,
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  seriesRow: {
+    alignItems: 'center',
     backgroundColor: colors.background,
     borderRadius: radii.md,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 7,
+    padding: 8,
+    width: '100%',
+  },
+  seriesNumber: {
+    color: colors.primary,
+    fontSize: 14,
+    fontWeight: '800',
+    minWidth: 18,
+    textAlign: 'center',
+  },
+  seriesPreview: {
+    borderTopColor: colors.border,
+    borderTopWidth: 1,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 12,
+    paddingTop: 12,
+    width: '100%',
+  },
+  seriesPreviewChip: {
+    backgroundColor: colors.background,
+    borderRadius: radii.sm,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+  },
+  seriesPreviewText: {
+    color: colors.primary,
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  planControlBox: {
+    backgroundColor: colors.surface,
+    borderRadius: radii.md,
     flexGrow: 1,
-    minWidth: '47%',
+    minWidth: 92,
     padding: 8,
   },
   planControlRow: {
@@ -1240,7 +1450,7 @@ const styles = StyleSheet.create({
   planControlInput: {
     color: colors.primary,
     flex: 1,
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '800',
     minHeight: 26,
     padding: 0,
@@ -1285,12 +1495,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: colors.primarySoft,
     borderRadius: radii.md,
+    flexDirection: 'row',
+    gap: 4,
     height: 36,
     justifyContent: 'center',
-    width: 36,
+    minWidth: 36,
+    paddingHorizontal: 9,
   },
   addedExerciseButton: {
     backgroundColor: colors.background,
+  },
+  addedExerciseText: {
+    color: colors.muted,
+    fontSize: 11,
+    fontWeight: '800',
   },
   executionCue: {
     color: colors.primaryMid,
