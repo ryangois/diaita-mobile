@@ -1,6 +1,6 @@
 import { Check, ChevronLeft, ChevronRight, Minus, Plus, Timer, X } from 'lucide-react-native';
 import { useEffect, useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { getExerciseById } from '../data/training';
 import { colors, radii } from '../styles/theme';
@@ -21,6 +21,17 @@ type ActiveWorkoutSessionProps = {
   onUpdateSession: (session: WorkoutSession) => void;
 };
 
+type PendingAction =
+  | {
+      type: 'update';
+      session: WorkoutSession;
+      message: string;
+    }
+  | {
+      type: 'finish';
+      session: WorkoutSession;
+    };
+
 export function ActiveWorkoutSession({
   session,
   workout,
@@ -29,6 +40,7 @@ export function ActiveWorkoutSession({
   onUpdateSession,
 }: ActiveWorkoutSessionProps) {
   const [restSeconds, setRestSeconds] = useState<number | null>(null);
+  const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
   const [transitionMessage, setTransitionMessage] = useState('Serie 1 pronta para registrar.');
   const currentWorkoutExercise = workout.exercises[session.currentExerciseIndex];
   const currentExercise = getExerciseById(currentWorkoutExercise.exerciseId);
@@ -59,11 +71,24 @@ export function ActiveWorkoutSession({
     return () => clearTimeout(timeout);
   }, [restSeconds]);
 
+  useEffect(() => {
+    if (restSeconds !== 0 || !pendingAction) {
+      return;
+    }
+
+    const timeout = setTimeout(() => {
+      applyPendingAction();
+    }, 450);
+
+    return () => clearTimeout(timeout);
+  }, [restSeconds, pendingAction]);
+
   if (!currentExercise || !currentSet) {
     return null;
   }
 
   const currentExerciseName = currentExercise.name;
+  const isResting = restSeconds !== null;
 
   function updateSession(nextSession: WorkoutSession, message?: string) {
     onUpdateSession(nextSession);
@@ -71,6 +96,24 @@ export function ActiveWorkoutSession({
     if (message) {
       setTransitionMessage(message);
     }
+  }
+
+  function applyPendingAction() {
+    if (!pendingAction) {
+      setRestSeconds(null);
+      return;
+    }
+
+    if (pendingAction.type === 'finish') {
+      setRestSeconds(null);
+      setPendingAction(null);
+      onFinish(pendingAction.session);
+      return;
+    }
+
+    setRestSeconds(null);
+    setPendingAction(null);
+    updateSession(pendingAction.session, pendingAction.message);
   }
 
   function updateSet(setId: string, update: Partial<WorkoutSetLog>) {
@@ -91,12 +134,17 @@ export function ActiveWorkoutSession({
     };
 
     setRestSeconds(currentWorkoutExercise.restSeconds);
+    setTransitionMessage(
+      `Serie ${session.currentSetIndex + 1} concluida. Descanso antes de avancar.`,
+    );
 
     if (session.currentSetIndex < exerciseLogs.length - 1) {
-      updateSession(
-        { ...completedSession, currentSetIndex: session.currentSetIndex + 1 },
-        `Serie ${session.currentSetIndex + 1} concluida. Proxima: serie ${session.currentSetIndex + 2}.`,
-      );
+      setPendingAction({
+        type: 'update',
+        session: { ...completedSession, currentSetIndex: session.currentSetIndex + 1 },
+        message: `Descanso finalizado. Agora na serie ${session.currentSetIndex + 2}.`,
+      });
+      onUpdateSession(completedSession);
       return;
     }
 
@@ -104,26 +152,33 @@ export function ActiveWorkoutSession({
       const nextWorkoutExercise = workout.exercises[session.currentExerciseIndex + 1];
       const nextExercise = getExerciseById(nextWorkoutExercise.exerciseId);
 
-      updateSession(
-        {
+      setPendingAction({
+        type: 'update',
+        session: {
           ...completedSession,
           currentExerciseIndex: session.currentExerciseIndex + 1,
           currentSetIndex: 0,
         },
-        `${currentExerciseName} concluido. Proximo exercicio: ${nextExercise?.name ?? 'exercicio'}.`,
-      );
+        message: `Descanso finalizado. Proximo exercicio: ${nextExercise?.name ?? 'exercicio'}.`,
+      });
+      onUpdateSession(completedSession);
       return;
     }
 
-    onFinish({
-      ...completedSession,
-      finishedAt: new Date().toISOString(),
-      status: 'finished',
+    setPendingAction({
+      type: 'finish',
+      session: {
+        ...completedSession,
+        finishedAt: new Date().toISOString(),
+        status: 'finished',
+      },
     });
+    onUpdateSession(completedSession);
   }
 
   function goToPreviousSet() {
     setRestSeconds(null);
+    setPendingAction(null);
 
     if (session.currentSetIndex > 0) {
       updateSession(
@@ -151,6 +206,7 @@ export function ActiveWorkoutSession({
 
   function goToNextSet() {
     setRestSeconds(null);
+    setPendingAction(null);
 
     if (session.currentSetIndex < exerciseLogs.length - 1) {
       updateSession(
@@ -223,6 +279,7 @@ export function ActiveWorkoutSession({
           value={currentSet.actualReps}
           onDecrease={() => updateSet(currentSet.id, { actualReps: Math.max(0, currentSet.actualReps - 1) })}
           onIncrease={() => updateSet(currentSet.id, { actualReps: currentSet.actualReps + 1 })}
+          onChangeValue={(actualReps) => updateSet(currentSet.id, { actualReps })}
         />
         <Stepper
           label="Carga"
@@ -232,6 +289,7 @@ export function ActiveWorkoutSession({
             updateSet(currentSet.id, { actualLoadKg: Math.max(0, currentSet.actualLoadKg - 2.5) })
           }
           onIncrease={() => updateSet(currentSet.id, { actualLoadKg: currentSet.actualLoadKg + 2.5 })}
+          onChangeValue={(actualLoadKg) => updateSet(currentSet.id, { actualLoadKg })}
         />
       </View>
 
@@ -248,10 +306,14 @@ export function ActiveWorkoutSession({
                 isActive && styles.activeSetBubble,
               ]}
               onPress={() =>
-                updateSession(
-                  { ...session, currentSetIndex: index },
-                  `Selecionada serie ${index + 1} de ${exerciseLogs.length}.`,
-                )
+                {
+                  setRestSeconds(null);
+                  setPendingAction(null);
+                  updateSession(
+                    { ...session, currentSetIndex: index },
+                    `Selecionada serie ${index + 1} de ${exerciseLogs.length}.`,
+                  );
+                }
               }
               accessibilityRole="button"
               accessibilityLabel={`Selecionar serie ${index + 1}`}
@@ -276,34 +338,38 @@ export function ActiveWorkoutSession({
           <Text style={styles.restText}>
             {restSeconds > 0 ? `Descanso: ${restSeconds}s` : 'Descanso concluido'}
           </Text>
-          <Pressable style={styles.skipRestButton} onPress={() => setRestSeconds(null)}>
+          <Pressable style={styles.skipRestButton} onPress={applyPendingAction}>
             <Text style={styles.skipRestButtonText}>Pular</Text>
           </Pressable>
         </View>
       )}
 
-      <Pressable
-        style={[styles.completeButton, currentSet.completed && styles.completedButton]}
-        onPress={completeCurrentSet}
-        accessibilityRole="button"
-        accessibilityLabel="Concluir serie"
-      >
-        <Check size={20} color={colors.surface} />
-        <Text style={styles.completeButtonText}>
-          {currentSet.completed ? 'Concluida - avancar mesmo assim' : 'Concluir e avancar'}
-        </Text>
-      </Pressable>
+      {!isResting && (
+        <Pressable
+          style={[styles.completeButton, currentSet.completed && styles.completedButton]}
+          onPress={completeCurrentSet}
+          accessibilityRole="button"
+          accessibilityLabel="Concluir serie"
+        >
+          <Check size={20} color={colors.surface} />
+          <Text style={styles.completeButtonText}>
+            {currentSet.completed ? 'Registrar descanso novamente' : 'Concluir serie'}
+          </Text>
+        </Pressable>
+      )}
 
-      <View style={styles.navigationRow}>
-        <Pressable style={styles.secondaryButton} onPress={goToPreviousSet}>
-          <ChevronLeft size={20} color={colors.primary} />
-          <Text style={styles.secondaryButtonText}>Anterior</Text>
-        </Pressable>
-        <Pressable style={styles.secondaryButton} onPress={goToNextSet}>
-          <Text style={styles.secondaryButtonText}>Pular</Text>
-          <ChevronRight size={20} color={colors.primary} />
-        </Pressable>
-      </View>
+      {!isResting && (
+        <View style={styles.navigationRow}>
+          <Pressable style={styles.secondaryButton} onPress={goToPreviousSet}>
+            <ChevronLeft size={20} color={colors.primary} />
+            <Text style={styles.secondaryButtonText}>Anterior</Text>
+          </Pressable>
+          <Pressable style={styles.secondaryButton} onPress={goToNextSet}>
+            <Text style={styles.secondaryButtonText}>Pular serie</Text>
+            <ChevronRight size={20} color={colors.primary} />
+          </Pressable>
+        </View>
+      )}
 
       <View style={styles.summaryRow}>
         <Text style={styles.summaryText}>{sessionVolume.toLocaleString('pt-BR')} kg volume</Text>
@@ -319,12 +385,14 @@ export function ActiveWorkoutSession({
 
 function Stepper({
   label,
+  onChangeValue,
   onDecrease,
   onIncrease,
   suffix,
   value,
 }: {
   label: string;
+  onChangeValue: (value: number) => void;
   onDecrease: () => void;
   onIncrease: () => void;
   suffix?: string;
@@ -337,16 +405,29 @@ function Stepper({
         <Pressable style={styles.stepButton} onPress={onDecrease}>
           <Minus size={18} color={colors.primary} />
         </Pressable>
-        <Text style={styles.stepperValue}>
-          {value}
-          {suffix ? ` ${suffix}` : ''}
-        </Text>
+        <TextInput
+          keyboardType="numeric"
+          selectTextOnFocus
+          style={styles.stepperInput}
+          value={formatNumber(value)}
+          onChangeText={(text) => onChangeValue(readNumber(text))}
+        />
+        {suffix && <Text style={styles.stepperSuffix}>{suffix}</Text>}
         <Pressable style={styles.stepButton} onPress={onIncrease}>
           <Plus size={18} color={colors.primary} />
         </Pressable>
       </View>
     </View>
   );
+}
+
+function readNumber(value: string) {
+  const parsed = Number(value.replace(',', '.'));
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function formatNumber(value: number) {
+  return Number.isInteger(value) ? `${value}` : `${value.toFixed(1)}`;
 }
 
 const styles = StyleSheet.create({
@@ -507,9 +588,17 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     width: 34,
   },
-  stepperValue: {
+  stepperInput: {
     color: colors.primary,
     fontSize: 18,
+    fontWeight: '800',
+    minWidth: 42,
+    padding: 0,
+    textAlign: 'center',
+  },
+  stepperSuffix: {
+    color: colors.primary,
+    fontSize: 12,
     fontWeight: '800',
   },
   restPanel: {
