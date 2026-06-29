@@ -2,14 +2,27 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useEffect, useState } from 'react';
 
 import { foods, meals } from '../data/nutrition';
+import { profile } from '../data/profile';
 import { workoutDays } from '../data/training';
 import type { AppData } from '../types';
 
 const STORAGE_KEY = '@diaita/app-data/v1';
 
 const initialData: AppData = {
+  bodyMetrics: [
+    {
+      id: 'initial-metric',
+      measuredAt: new Date().toISOString(),
+      weightKg: profile.weightKg,
+      waistCm: 84,
+      chestCm: 102,
+      armCm: 36,
+      legCm: 58,
+    },
+  ],
   foods,
   meals,
+  profile,
   workoutDays,
   workoutHistory: [],
 };

@@ -5,7 +5,6 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { ActiveWorkoutSession } from '../components/ActiveWorkoutSession';
 import { ExerciseMedia } from '../components/ExerciseMedia';
 import { SectionTitle } from '../components/SectionTitle';
-import { profile } from '../data/profile';
 import { exercises, getExerciseById } from '../data/training';
 import { colors, radii } from '../styles/theme';
 import {
@@ -18,9 +17,10 @@ import {
   countCompletedSets,
   createWorkoutSession,
 } from '../utils/workoutSession';
-import type { WorkoutDay, WorkoutSession } from '../types';
+import type { UserProfile, WorkoutDay, WorkoutSession } from '../types';
 
 type TrainingScreenProps = {
+  profile: UserProfile;
   workoutDays: WorkoutDay[];
   workoutHistory: WorkoutSession[];
   onWorkoutDaysChange: (workoutDays: WorkoutDay[]) => void;
@@ -28,6 +28,7 @@ type TrainingScreenProps = {
 };
 
 export function TrainingScreen({
+  profile,
   workoutDays,
   workoutHistory,
   onWorkoutDaysChange,

@@ -1,20 +1,35 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { Plus, Scale } from 'lucide-react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { SectionTitle } from '../components/SectionTitle';
 import { loadChart, progressInsights } from '../data/progress';
 import { colors, radii } from '../styles/theme';
-import type { Food, Meal, WorkoutSession } from '../types';
+import type { BodyMetric, Food, Meal, UserProfile, WorkoutSession } from '../types';
 import { calculateNutritionTotals } from '../utils/nutrition';
 import { calculateSessionVolume, countCompletedSets } from '../utils/workoutSession';
 
 type ProgressScreenProps = {
+  bodyMetrics: BodyMetric[];
   foods: Food[];
   meals: Meal[];
+  onBodyMetricsChange: (metrics: BodyMetric[]) => void;
+  profile: UserProfile;
   workoutHistory: WorkoutSession[];
 };
 
-export function ProgressScreen({ foods, meals, workoutHistory }: ProgressScreenProps) {
+export function ProgressScreen({
+  bodyMetrics,
+  foods,
+  meals,
+  onBodyMetricsChange,
+  profile,
+  workoutHistory,
+}: ProgressScreenProps) {
   const nutritionTotals = calculateNutritionTotals(meals, foods);
+  const latestMetric = bodyMetrics[0];
+  const previousMetric = bodyMetrics[1];
+  const weightDelta =
+    latestMetric && previousMetric ? latestMetric.weightKg - previousMetric.weightKg : 0;
   const totalWorkoutVolume = workoutHistory.reduce(
     (total, session) => total + calculateSessionVolume(session),
     0,
@@ -42,23 +57,78 @@ export function ProgressScreen({ foods, meals, workoutHistory }: ProgressScreenP
       note: `${nutritionTotals.protein}g proteina`,
       value: `${nutritionTotals.calories}`,
     },
+    {
+      id: 'weight-delta',
+      label: 'Peso',
+      note: previousMetric ? 'comparado ao registro anterior' : 'primeiro registro',
+      value: latestMetric ? `${weightDelta >= 0 ? '+' : ''}${weightDelta.toFixed(1)} kg` : '--',
+    },
   ];
+
+  function addBodyMetric() {
+    const base = latestMetric ?? {
+      weightKg: profile.weightKg,
+      waistCm: 84,
+      chestCm: 102,
+      armCm: 36,
+      legCm: 58,
+    };
+
+    const nextMetric: BodyMetric = {
+      id: `metric-${Date.now()}`,
+      measuredAt: new Date().toISOString(),
+      weightKg: Math.round((base.weightKg - 0.2) * 10) / 10,
+      waistCm: Math.max(0, Math.round((base.waistCm - 0.3) * 10) / 10),
+      chestCm: base.chestCm,
+      armCm: Math.round((base.armCm + 0.1) * 10) / 10,
+      legCm: base.legCm,
+    };
+
+    onBodyMetricsChange([nextMetric, ...bodyMetrics]);
+  }
 
   return (
     <>
       <SectionTitle title="Evolucao" />
       <View style={styles.chartCard}>
         <View style={styles.chartBars}>
-          {loadChart.map((height, index) => (
-            <View key={`${height}-${index}`} style={styles.barColumn}>
-              <View style={[styles.bar, { height }]} />
-            </View>
-          ))}
+          {(bodyMetrics.length > 1 ? bodyMetrics.slice(0, 7).reverse().map((metric) => metric.weightKg) : loadChart).map(
+            (value, index, values) => {
+              const min = Math.min(...values);
+              const max = Math.max(...values);
+              const height = values.length > 1 ? 36 + ((value - min) / Math.max(max - min, 1)) * 58 : value;
+
+              return (
+                <View key={`${value}-${index}`} style={styles.barColumn}>
+                  <View style={[styles.bar, { height }]} />
+                </View>
+              );
+            },
+          )}
         </View>
-        <Text style={styles.cardTitle}>Carga e volume subindo</Text>
+        <Text style={styles.cardTitle}>Peso, volume e dieta conectados</Text>
         <Text style={styles.cardText}>
-          Sua consistencia nos ultimos 30 dias esta gerando progresso mensuravel.
+          O painel usa treinos finalizados, dieta atual e medidas corporais salvas.
         </Text>
+      </View>
+
+      <View style={styles.metricPanel}>
+        <View style={styles.metricIcon}>
+          <Scale size={22} color={colors.primary} />
+        </View>
+        <View style={styles.insightBody}>
+          <Text style={styles.cardTitle}>
+            {latestMetric ? `${latestMetric.weightKg} kg` : `${profile.weightKg} kg`}
+          </Text>
+          <Text style={styles.cardText}>
+            {latestMetric
+              ? `Cintura ${latestMetric.waistCm} cm - braco ${latestMetric.armCm} cm`
+              : 'Sem medida corporal registrada'}
+          </Text>
+        </View>
+        <Pressable style={styles.addMetricButton} onPress={addBodyMetric}>
+          <Plus size={18} color={colors.primary} />
+        </Pressable>
       </View>
 
       {[...dynamicInsights, ...progressInsights].map((row) => (
@@ -132,6 +202,31 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
     marginTop: 4,
+  },
+  metricPanel: {
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderRadius: radii.md,
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 10,
+    padding: 14,
+  },
+  metricIcon: {
+    alignItems: 'center',
+    backgroundColor: colors.primarySoft,
+    borderRadius: radii.md,
+    height: 48,
+    justifyContent: 'center',
+    width: 48,
+  },
+  addMetricButton: {
+    alignItems: 'center',
+    backgroundColor: colors.primarySoft,
+    borderRadius: radii.md,
+    height: 38,
+    justifyContent: 'center',
+    width: 38,
   },
   insightRow: {
     alignItems: 'center',

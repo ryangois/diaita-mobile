@@ -5,25 +5,37 @@ import { ExerciseFallbackMedia } from '../components/ExerciseMedia';
 import { MetricCard } from '../components/MetricCard';
 import { SectionTitle } from '../components/SectionTitle';
 import { StatPill } from '../components/StatPill';
-import { nutritionTotals } from '../data/nutrition';
-import { profile } from '../data/profile';
-import { getExerciseById, workoutDays } from '../data/training';
+import { getExerciseById } from '../data/training';
 import { colors, radii } from '../styles/theme';
+import type { Food, Meal, UserProfile, WorkoutDay, WorkoutSession } from '../types';
 import { getSelectedWorkoutCalories } from '../utils/calories';
+import { calculateNutritionTotals } from '../utils/nutrition';
 
-export function TodayScreen() {
+type TodayScreenProps = {
+  foods: Food[];
+  meals: Meal[];
+  profile: UserProfile;
+  workoutDays: WorkoutDay[];
+  workoutHistory: WorkoutSession[];
+};
+
+export function TodayScreen({ foods, meals, profile, workoutDays, workoutHistory }: TodayScreenProps) {
   const todayWorkout = workoutDays[0];
+  const nutritionTotals = calculateNutritionTotals(meals, foods);
   const firstWorkoutExercise = todayWorkout.exercises[0];
   const firstExercise = getExerciseById(firstWorkoutExercise.exerciseId);
   const workoutCalories = getSelectedWorkoutCalories(todayWorkout, profile);
+  const proteinProgress = Math.round((nutritionTotals.protein / profile.dailyProteinGoal) * 100);
 
   return (
     <>
       <View style={styles.heroPanel}>
         <Text style={styles.kicker}>Plano de hoje</Text>
-        <Text style={styles.heroTitle}>Treino A + 2.300 kcal</Text>
+        <Text style={styles.heroTitle}>
+          Treino {todayWorkout.label} + {profile.dailyCalorieGoal} kcal
+        </Text>
         <Text style={styles.heroText}>
-          Foco em peito, costas e ombros. Proteina esta quase na meta diaria.
+          {todayWorkout.title}. Proteina em {proteinProgress}% da meta diaria.
         </Text>
         <View style={styles.heroStats}>
           <StatPill icon={Dumbbell} value={`${todayWorkout.exercises.length}`} label="exercicios" />
@@ -34,9 +46,9 @@ export function TodayScreen() {
 
       <SectionTitle title="Resumo" />
       <View style={styles.metricGrid}>
-        <MetricCard icon={Activity} label="Treinos" value="4/5" tone="green" />
+        <MetricCard icon={Activity} label="Treinos" value={`${workoutHistory.length}/${profile.trainingDaysPerWeek}`} tone="green" />
         <MetricCard icon={Apple} label="Proteina" value={`${nutritionTotals.protein}g`} tone="red" />
-        <MetricCard icon={Scale} label="Peso" value="82,4kg" tone="blue" />
+        <MetricCard icon={Scale} label="Peso" value={`${profile.weightKg.toLocaleString('pt-BR')}kg`} tone="blue" />
         <MetricCard icon={BarChart3} label={workoutCalories.label} value={`${workoutCalories.calories}`} tone="yellow" />
       </View>
 

@@ -3,9 +3,8 @@ import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { SectionTitle } from '../components/SectionTitle';
-import { dailyNutritionGoal } from '../data/nutrition';
 import { colors, radii } from '../styles/theme';
-import type { Food, Meal } from '../types';
+import type { Food, Meal, UserProfile } from '../types';
 import {
   calculateMealItemNutrition,
   calculateMealTotals,
@@ -16,11 +15,12 @@ type DietScreenProps = {
   foods: Food[];
   isLoaded: boolean;
   meals: Meal[];
+  profile: UserProfile;
   onFoodsChange: (foods: Food[]) => void;
   onMealsChange: (meals: Meal[]) => void;
 };
 
-export function DietScreen({ foods, isLoaded, meals, onFoodsChange, onMealsChange }: DietScreenProps) {
+export function DietScreen({ foods, isLoaded, meals, onFoodsChange, onMealsChange, profile }: DietScreenProps) {
   const [selectedMealId, setSelectedMealId] = useState(meals[0]?.id ?? 'breakfast');
   const [foodSearch, setFoodSearch] = useState('');
   const [showManualFoodForm, setShowManualFoodForm] = useState(false);
@@ -46,9 +46,9 @@ export function DietScreen({ foods, isLoaded, meals, onFoodsChange, onMealsChang
 
   const calorieProgress = Math.min(
     100,
-    Math.round((nutritionTotals.calories / dailyNutritionGoal.calories) * 100),
+    Math.round((nutritionTotals.calories / profile.dailyCalorieGoal) * 100),
   );
-  const remainingCalories = dailyNutritionGoal.calories - nutritionTotals.calories;
+  const remainingCalories = profile.dailyCalorieGoal - nutritionTotals.calories;
   const selectedMeal = meals.find((meal) => meal.id === selectedMealId) ?? meals[0];
   const filteredFoods = foods.filter((food) => {
     const search = foodSearch.trim().toLowerCase();
@@ -149,7 +149,7 @@ export function DietScreen({ foods, isLoaded, meals, onFoodsChange, onMealsChang
       <View style={styles.nutritionPanel}>
         <Text style={styles.kicker}>Meta diaria</Text>
         <Text style={styles.heroTitle}>
-          {nutritionTotals.calories} / {dailyNutritionGoal.calories} kcal
+          {nutritionTotals.calories} / {profile.dailyCalorieGoal} kcal
         </Text>
         <View style={styles.progressTrack}>
           <View style={[styles.progressFill, { width: `${calorieProgress}%` }]} />
@@ -185,9 +185,9 @@ export function DietScreen({ foods, isLoaded, meals, onFoodsChange, onMealsChang
 
       <SectionTitle title="Macros" />
       <View style={styles.macroGrid}>
-        <MacroCard label="Proteina" value={`${nutritionTotals.protein}g`} target={`${dailyNutritionGoal.protein}g`} />
-        <MacroCard label="Carbo" value={`${nutritionTotals.carbs}g`} target={`${dailyNutritionGoal.carbs}g`} />
-        <MacroCard label="Gordura" value={`${nutritionTotals.fat}g`} target={`${dailyNutritionGoal.fat}g`} />
+        <MacroCard label="Proteina" value={`${nutritionTotals.protein}g`} target={`${profile.dailyProteinGoal}g`} />
+        <MacroCard label="Carbo" value={`${nutritionTotals.carbs}g`} target={`${profile.dailyCarbsGoal}g`} />
+        <MacroCard label="Gordura" value={`${nutritionTotals.fat}g`} target={`${profile.dailyFatGoal}g`} />
       </View>
 
       <SectionTitle title="Refeicoes" />

@@ -78,6 +78,32 @@ export type WorkoutSession = {
   setLogs: WorkoutSetLog[];
 };
 
+export type UserProfile = {
+  name: string;
+  age: number;
+  sex: 'male' | 'female';
+  weightKg: number;
+  heightCm: number;
+  level: string;
+  goal: string;
+  trainingDaysPerWeek: number;
+  equipment: string;
+  dailyCalorieGoal: number;
+  dailyProteinGoal: number;
+  dailyCarbsGoal: number;
+  dailyFatGoal: number;
+};
+
+export type BodyMetric = {
+  id: string;
+  measuredAt: string;
+  weightKg: number;
+  waistCm: number;
+  chestCm: number;
+  armCm: number;
+  legCm: number;
+};
+
 export type Meal = {
   id: string;
   name: string;
@@ -134,8 +160,10 @@ export type ProgressInsight = {
 };
 
 export type AppData = {
+  bodyMetrics: BodyMetric[];
   foods: Food[];
   meals: Meal[];
+  profile: UserProfile;
   workoutDays: WorkoutDay[];
   workoutHistory: WorkoutSession[];
 };
