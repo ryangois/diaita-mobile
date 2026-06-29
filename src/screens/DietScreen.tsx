@@ -1,5 +1,5 @@
 import { Apple, Check, ChevronDown, ChevronUp, Minus, Plus, Search, Utensils } from 'lucide-react-native';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { SectionTitle } from '../components/SectionTitle';
@@ -22,6 +22,7 @@ type DietScreenProps = {
 
 export function DietScreen({ foods, isLoaded, meals, onFoodsChange, onMealsChange, profile }: DietScreenProps) {
   const [selectedMealId, setSelectedMealId] = useState(meals[0]?.id ?? 'breakfast');
+  const [selectedCategory, setSelectedCategory] = useState('Todos');
   const [foodSearch, setFoodSearch] = useState('');
   const [showManualFoodForm, setShowManualFoodForm] = useState(false);
   const [lastAction, setLastAction] = useState('Dados sincronizados localmente.');
@@ -50,8 +51,14 @@ export function DietScreen({ foods, isLoaded, meals, onFoodsChange, onMealsChang
   );
   const remainingCalories = profile.dailyCalorieGoal - nutritionTotals.calories;
   const selectedMeal = meals.find((meal) => meal.id === selectedMealId) ?? meals[0];
+  const foodCategories = useMemo(() => ['Todos', ...Array.from(new Set(foods.map((food) => food.category)))], [foods]);
   const filteredFoods = foods.filter((food) => {
     const search = foodSearch.trim().toLowerCase();
+    const matchesCategory = selectedCategory === 'Todos' || food.category === selectedCategory;
+
+    if (!matchesCategory) {
+      return false;
+    }
 
     if (!search) {
       return true;
@@ -60,7 +67,24 @@ export function DietScreen({ foods, isLoaded, meals, onFoodsChange, onMealsChang
     return food.name.toLowerCase().includes(search) || food.category.toLowerCase().includes(search);
   });
 
+  function createMeal() {
+    const mealNumber = meals.length + 1;
+    const newMeal: Meal = {
+      id: `meal-${Date.now()}`,
+      name: `Refeicao ${mealNumber}`,
+      items: [],
+    };
+
+    onMealsChange([...meals, newMeal]);
+    setSelectedMealId(newMeal.id);
+    setLastAction(`${newMeal.name} criada e selecionada.`);
+  }
+
   function addFoodToSelectedMeal(food: Food) {
+    if (!selectedMeal) {
+      return;
+    }
+
     onMealsChange(
       meals.map((meal) => {
         if (meal.id !== selectedMeal.id) {
@@ -108,6 +132,24 @@ export function DietScreen({ foods, isLoaded, meals, onFoodsChange, onMealsChang
           ...meal,
           items: meal.items
             .map((item) => (item.id === itemId ? { ...item, amount: item.amount + delta } : item))
+            .filter((item) => item.amount > 0),
+        };
+      }),
+    );
+    setLastAction('Quantidade atualizada.');
+  }
+
+  function updateMealItemAmount(mealId: string, itemId: string, amount: number) {
+    onMealsChange(
+      meals.map((meal) => {
+        if (meal.id !== mealId) {
+          return meal;
+        }
+
+        return {
+          ...meal,
+          items: meal.items
+            .map((item) => (item.id === itemId ? { ...item, amount: Math.max(0, amount) } : item))
             .filter((item) => item.amount > 0),
         };
       }),
@@ -164,7 +206,7 @@ export function DietScreen({ foods, isLoaded, meals, onFoodsChange, onMealsChang
       <SectionTitle title="Refeicao alvo" />
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.mealChips}>
         {meals.map((meal) => {
-          const isSelected = meal.id === selectedMeal.id;
+          const isSelected = meal.id === selectedMeal?.id;
 
           return (
             <Pressable
@@ -181,6 +223,15 @@ export function DietScreen({ foods, isLoaded, meals, onFoodsChange, onMealsChang
             </Pressable>
           );
         })}
+        <Pressable
+          style={styles.newMealChip}
+          onPress={createMeal}
+          accessibilityRole="button"
+          accessibilityLabel="Criar nova refeicao"
+        >
+          <Plus size={15} color={colors.primary} />
+          <Text style={styles.newMealChipText}>Nova</Text>
+        </Pressable>
       </ScrollView>
 
       <SectionTitle title="Macros" />
@@ -226,14 +277,18 @@ export function DietScreen({ foods, isLoaded, meals, onFoodsChange, onMealsChang
                   <View style={styles.itemControls}>
                     <Pressable
                       style={styles.quantityButton}
-                      onPress={() => changeMealItemAmount(meal.id, item.id, -1)}
+                      onPress={() => changeMealItemAmount(meal.id, item.id, -getAmountStep(item.unit))}
                       accessibilityLabel={`Diminuir ${itemNutrition.food.name}`}
                     >
                       <Minus size={14} color={colors.primary} />
                     </Pressable>
+                    <MealAmountInput
+                      amount={item.amount}
+                      onChange={(amount) => updateMealItemAmount(meal.id, item.id, amount)}
+                    />
                     <Pressable
                       style={styles.quantityButton}
-                      onPress={() => changeMealItemAmount(meal.id, item.id, 1)}
+                      onPress={() => changeMealItemAmount(meal.id, item.id, getAmountStep(item.unit))}
                       accessibilityLabel={`Aumentar ${itemNutrition.food.name}`}
                     >
                       <Plus size={14} color={colors.primary} />
@@ -247,8 +302,14 @@ export function DietScreen({ foods, isLoaded, meals, onFoodsChange, onMealsChang
         </View>
       ))}
 
-      <SectionTitle title="Base de alimentos" />
-      <Text style={styles.libraryHint}>Adicionando em: {selectedMeal.name}</Text>
+      <SectionTitle title="Adicionar alimento" />
+      <View style={styles.addFoodPanel}>
+        <View>
+          <Text style={styles.libraryHint}>Destino</Text>
+          <Text style={styles.selectedMealText}>{selectedMeal?.name ?? 'Selecione uma refeicao'}</Text>
+        </View>
+        <Text style={styles.libraryHint}>{filteredFoods.length} alimentos</Text>
+      </View>
       <View style={styles.searchBox}>
         <Search size={18} color={colors.primaryMid} />
         <TextInput
@@ -259,6 +320,25 @@ export function DietScreen({ foods, isLoaded, meals, onFoodsChange, onMealsChang
           onChangeText={setFoodSearch}
         />
       </View>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryChips}>
+        {foodCategories.map((category) => {
+          const isSelected = category === selectedCategory;
+
+          return (
+            <Pressable
+              key={category}
+              style={[styles.categoryChip, isSelected && styles.activeCategoryChip]}
+              onPress={() => setSelectedCategory(category)}
+              accessibilityRole="button"
+              accessibilityLabel={`Filtrar ${category}`}
+            >
+              <Text style={[styles.categoryChipText, isSelected && styles.activeCategoryChipText]}>
+                {category}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </ScrollView>
       <Pressable
         style={styles.manualFoodToggle}
         onPress={() => setShowManualFoodForm((current) => !current)}
@@ -322,6 +402,9 @@ export function DietScreen({ foods, isLoaded, meals, onFoodsChange, onMealsChang
               <Text style={styles.cardText}>
                 {food.category} - {food.caloriesPer100g} kcal/100g - {food.defaultServing.label}
               </Text>
+              <Text style={styles.foodServingHint}>
+                Vai entrar como {food.defaultServing.label} em {selectedMeal?.name ?? 'uma refeicao'}
+              </Text>
             </View>
             <Pressable
               style={styles.addButton}
@@ -369,6 +452,35 @@ function MacroInput({
 function readNumber(value: string) {
   const parsed = Number(value.replace(',', '.'));
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function getAmountStep(unit: string) {
+  return unit === 'g' ? 10 : 1;
+}
+
+function MealAmountInput({ amount, onChange }: { amount: number; onChange: (amount: number) => void }) {
+  const [draftAmount, setDraftAmount] = useState(String(amount));
+
+  useEffect(() => {
+    setDraftAmount(String(amount));
+  }, [amount]);
+
+  function commitDraft() {
+    const nextAmount = readNumber(draftAmount);
+    onChange(nextAmount);
+    setDraftAmount(String(Math.max(0, nextAmount)));
+  }
+
+  return (
+    <TextInput
+      keyboardType="numeric"
+      style={styles.amountInput}
+      value={draftAmount}
+      onBlur={commitDraft}
+      onChangeText={setDraftAmount}
+      onSubmitEditing={commitDraft}
+    />
+  );
 }
 
 function MacroCard({ label, value, target }: { label: string; value: string; target: string }) {
@@ -444,6 +556,20 @@ const styles = StyleSheet.create({
   },
   activeMealChipText: {
     color: colors.surface,
+  },
+  newMealChip: {
+    alignItems: 'center',
+    backgroundColor: colors.primarySoft,
+    borderRadius: radii.md,
+    flexDirection: 'row',
+    gap: 6,
+    minHeight: 40,
+    paddingHorizontal: 12,
+  },
+  newMealChipText: {
+    color: colors.primary,
+    fontSize: 13,
+    fontWeight: '800',
   },
   macroCard: {
     backgroundColor: colors.surface,
@@ -544,6 +670,7 @@ const styles = StyleSheet.create({
     textAlign: 'right',
   },
   itemControls: {
+    alignItems: 'center',
     flexDirection: 'row',
     gap: 5,
   },
@@ -555,15 +682,40 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     width: 28,
   },
+  amountInput: {
+    backgroundColor: colors.background,
+    borderRadius: radii.sm,
+    color: colors.primary,
+    fontSize: 12,
+    fontWeight: '800',
+    height: 28,
+    minWidth: 42,
+    paddingHorizontal: 6,
+    paddingVertical: 0,
+    textAlign: 'center',
+  },
   foodLibrary: {
     gap: 10,
+  },
+  addFoodPanel: {
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderRadius: radii.md,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+    padding: 12,
   },
   libraryHint: {
     color: colors.primaryMid,
     fontSize: 13,
     fontWeight: '800',
-    marginBottom: 10,
-    marginTop: -4,
+  },
+  selectedMealText: {
+    color: colors.text,
+    fontSize: 16,
+    fontWeight: '800',
+    marginTop: 3,
   },
   manualFoodPanel: {
     backgroundColor: colors.surface,
@@ -600,6 +752,29 @@ const styles = StyleSheet.create({
     color: colors.text,
     flex: 1,
     fontSize: 14,
+  },
+  categoryChips: {
+    gap: 8,
+    marginBottom: 10,
+    paddingRight: 20,
+  },
+  categoryChip: {
+    backgroundColor: colors.surface,
+    borderRadius: radii.md,
+    minHeight: 36,
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+  },
+  activeCategoryChip: {
+    backgroundColor: colors.primary,
+  },
+  categoryChipText: {
+    color: colors.primary,
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  activeCategoryChipText: {
+    color: colors.surface,
   },
   textInput: {
     backgroundColor: colors.background,
@@ -673,6 +848,12 @@ const styles = StyleSheet.create({
     height: 34,
     justifyContent: 'center',
     width: 34,
+  },
+  foodServingHint: {
+    color: colors.primaryMid,
+    fontSize: 12,
+    fontWeight: '700',
+    marginTop: 6,
   },
   emptySearch: {
     backgroundColor: colors.surface,

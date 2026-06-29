@@ -1,6 +1,6 @@
 import { CheckCircle2, Clock3, Dumbbell, Flame, Minus, Pencil, Play, Plus, Target, Trash2 } from 'lucide-react-native';
-import { useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useMemo, useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { ActiveWorkoutSession } from '../components/ActiveWorkoutSession';
 import { ExerciseMedia } from '../components/ExerciseMedia';
@@ -18,6 +18,108 @@ import {
   createWorkoutSession,
 } from '../utils/workoutSession';
 import type { UserProfile, WorkoutDay, WorkoutSession } from '../types';
+
+type TrainingTemplate = {
+  key: string;
+  name: string;
+  description: string;
+  days: WorkoutDay[];
+};
+
+const trainingTemplates: TrainingTemplate[] = [
+  {
+    key: 'abc',
+    name: 'ABC',
+    description: '3 treinos para repetir na semana',
+    days: [
+      createWorkoutDay('a', 'A', 'Push superior', 'Peito, ombros e triceps', 60, 'intenso', [
+        ['bench-press', 4, 8, 72, 90],
+        ['shoulder-press', 3, 10, 32, 75],
+        ['lat-pulldown', 3, 12, 52, 75],
+      ]),
+      createWorkoutDay('b', 'B', 'Pernas completas', 'Quadriceps e posterior', 70, 'muito_intenso', [
+        ['squat', 5, 5, 96, 120],
+        ['romanian-deadlift', 4, 8, 88, 100],
+        ['bench-press', 2, 12, 52, 60],
+      ]),
+      createWorkoutDay('c', 'C', 'Pull superior', 'Costas e bracos', 58, 'moderado', [
+        ['bent-row', 4, 10, 64, 90],
+        ['lat-pulldown', 4, 12, 58, 75],
+        ['shoulder-press', 3, 12, 28, 70],
+      ]),
+    ],
+  },
+  {
+    key: 'abcd',
+    name: 'ABCD',
+    description: '4 dias com foco mais separado',
+    days: [
+      createWorkoutDay('a', 'A', 'Peito e ombros', 'Empurrar pesado', 62, 'intenso', [
+        ['bench-press', 4, 8, 72, 90],
+        ['shoulder-press', 4, 8, 34, 90],
+      ]),
+      createWorkoutDay('b', 'B', 'Costas', 'Puxadas e remadas', 58, 'intenso', [
+        ['bent-row', 4, 8, 66, 90],
+        ['lat-pulldown', 4, 10, 60, 75],
+      ]),
+      createWorkoutDay('c', 'C', 'Pernas', 'Forca de base', 72, 'muito_intenso', [
+        ['squat', 5, 5, 96, 120],
+        ['romanian-deadlift', 4, 8, 88, 100],
+      ]),
+      createWorkoutDay('d', 'D', 'Full body tecnico', 'Volume controlado', 50, 'moderado', [
+        ['bench-press', 3, 10, 62, 75],
+        ['squat', 3, 8, 82, 100],
+        ['lat-pulldown', 3, 12, 54, 70],
+      ]),
+    ],
+  },
+  {
+    key: 'abcde',
+    name: 'ABCDE',
+    description: '5 dias para hipertrofia',
+    days: [
+      createWorkoutDay('a', 'A', 'Peito', 'Volume de press', 54, 'moderado', [['bench-press', 5, 8, 72, 90]]),
+      createWorkoutDay('b', 'B', 'Costas', 'Remadas e puxadas', 58, 'intenso', [
+        ['bent-row', 4, 10, 64, 90],
+        ['lat-pulldown', 4, 12, 58, 75],
+      ]),
+      createWorkoutDay('c', 'C', 'Pernas', 'Quadriceps e posterior', 70, 'muito_intenso', [
+        ['squat', 5, 6, 90, 120],
+        ['romanian-deadlift', 4, 8, 86, 100],
+      ]),
+      createWorkoutDay('d', 'D', 'Ombros', 'Estabilidade e press', 48, 'moderado', [['shoulder-press', 5, 10, 30, 75]]),
+      createWorkoutDay('e', 'E', 'Bracos e core', 'Acabamento semanal', 45, 'leve', [
+        ['lat-pulldown', 3, 12, 50, 60],
+        ['bench-press', 3, 12, 50, 60],
+      ]),
+    ],
+  },
+  {
+    key: 'upper-lower',
+    name: 'Upper/Lower',
+    description: 'Superior e inferior alternados',
+    days: [
+      createWorkoutDay('a', 'Upper 1', 'Superior pesado', 'Press e remada', 62, 'intenso', [
+        ['bench-press', 4, 6, 76, 100],
+        ['bent-row', 4, 8, 66, 90],
+        ['shoulder-press', 3, 8, 34, 80],
+      ]),
+      createWorkoutDay('b', 'Lower 1', 'Inferior pesado', 'Agachar e puxar', 70, 'muito_intenso', [
+        ['squat', 5, 5, 96, 120],
+        ['romanian-deadlift', 4, 8, 88, 100],
+      ]),
+      createWorkoutDay('c', 'Upper 2', 'Superior volume', 'Repeticoes controladas', 56, 'moderado', [
+        ['lat-pulldown', 4, 12, 58, 75],
+        ['bench-press', 3, 10, 64, 75],
+        ['shoulder-press', 3, 12, 28, 70],
+      ]),
+      createWorkoutDay('d', 'Lower 2', 'Inferior posterior', 'Quadril e estabilidade', 64, 'intenso', [
+        ['romanian-deadlift', 5, 6, 90, 110],
+        ['squat', 3, 10, 76, 90],
+      ]),
+    ],
+  },
+];
 
 type TrainingScreenProps = {
   profile: UserProfile;
@@ -41,7 +143,7 @@ export function TrainingScreen({
 
   const activeWorkout = useMemo(() => {
     return workoutDays.find((workout) => workout.id === activeWorkoutId) ?? workoutDays[0];
-  }, [activeWorkoutId]);
+  }, [activeWorkoutId, workoutDays]);
 
   const totalSets = activeWorkout.exercises.reduce((sum, item) => sum + item.sets, 0);
   const workoutVolume = calculateWorkoutVolume(activeWorkout);
@@ -50,6 +152,13 @@ export function TrainingScreen({
 
   function updateActiveWorkout(update: WorkoutDay) {
     onWorkoutDaysChange(workoutDays.map((workout) => (workout.id === update.id ? update : workout)));
+  }
+
+  function applyTemplate(template: TrainingTemplate) {
+    const nextDays = template.days.map((day) => ({ ...day, exercises: day.exercises.map((exercise) => ({ ...exercise })) }));
+    onWorkoutDaysChange(nextDays);
+    setActiveWorkoutId(nextDays[0].id);
+    setIsEditingPlan(true);
   }
 
   function addExerciseToWorkout(exerciseId: string) {
@@ -78,7 +187,7 @@ export function TrainingScreen({
   function updateExercisePlan(
     exerciseId: string,
     field: 'sets' | 'reps' | 'targetLoadKg' | 'restSeconds',
-    delta: number,
+    value: number,
   ) {
     updateActiveWorkout({
       ...activeWorkout,
@@ -89,10 +198,24 @@ export function TrainingScreen({
 
         return {
           ...exercise,
-          [field]: Math.max(field === 'targetLoadKg' ? 0 : 1, exercise[field] + delta),
+          [field]: clampExerciseValue(field, value),
         };
       }),
     });
+  }
+
+  function bumpExercisePlan(
+    exerciseId: string,
+    field: 'sets' | 'reps' | 'targetLoadKg' | 'restSeconds',
+    delta: number,
+  ) {
+    const plannedExercise = activeWorkout.exercises.find((exercise) => exercise.exerciseId === exerciseId);
+
+    if (!plannedExercise) {
+      return;
+    }
+
+    updateExercisePlan(exerciseId, field, plannedExercise[field] + delta);
   }
 
   if (activeSession) {
@@ -114,7 +237,7 @@ export function TrainingScreen({
   return (
     <>
       <SectionTitle title="Planilha da semana" />
-      <View style={styles.weekPlan}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.weekPlan}>
         {workoutDays.map((day, index) => {
           const isActive = activeWorkout.id === day.id;
 
@@ -130,10 +253,13 @@ export function TrainingScreen({
               <Text style={[styles.dayText, isActive && styles.activeDayText]}>
                 {index === 0 ? 'Hoje' : `${index + 2}a`}
               </Text>
+              <Text style={[styles.dayFocus, isActive && styles.activeDayText]} numberOfLines={1}>
+                {day.title}
+              </Text>
             </Pressable>
           );
         })}
-      </View>
+      </ScrollView>
 
       <View style={styles.workoutSummary}>
         <Text style={styles.summaryKicker}>{activeWorkout.focus}</Text>
@@ -196,6 +322,26 @@ export function TrainingScreen({
         </Text>
       </Pressable>
 
+      {isEditingPlan && (
+        <>
+          <SectionTitle title="Modelos de treino" />
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.templateRail}>
+            {trainingTemplates.map((template) => (
+              <Pressable
+                key={template.key}
+                style={styles.templateCard}
+                onPress={() => applyTemplate(template)}
+                accessibilityRole="button"
+                accessibilityLabel={`Aplicar modelo ${template.name}`}
+              >
+                <Text style={styles.templateName}>{template.name}</Text>
+                <Text style={styles.templateDescription}>{template.description}</Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+        </>
+      )}
+
       <SectionTitle title="Gasto calorico" />
       <View style={styles.caloriePanel}>
         <View>
@@ -234,10 +380,10 @@ export function TrainingScreen({
         }
 
         return (
-          <View key={plannedExercise.exerciseId} style={styles.listCard}>
-            <ExerciseMedia exercise={exercise} />
-            <View style={styles.listBody}>
-              <Text style={styles.cardTitle}>{exercise.name}</Text>
+            <View key={plannedExercise.exerciseId} style={[styles.listCard, isEditingPlan && styles.editableListCard]}>
+              <ExerciseMedia exercise={exercise} />
+              <View style={styles.listBody}>
+                <Text style={styles.cardTitle}>{exercise.name}</Text>
               <Text style={styles.cardText}>
                 {plannedExercise.sets} series x {plannedExercise.reps} reps
               </Text>
@@ -246,18 +392,39 @@ export function TrainingScreen({
               </Text>
             </View>
             {isEditingPlan ? (
-              <View style={styles.planControls}>
-                <Text style={styles.loadText}>{plannedExercise.targetLoadKg} kg</Text>
-                <View style={styles.planControlRow}>
-                  <IconButton icon={Minus} onPress={() => updateExercisePlan(exercise.id, 'sets', -1)} />
-                  <Text style={styles.planControlText}>{plannedExercise.sets}s</Text>
-                  <IconButton icon={Plus} onPress={() => updateExercisePlan(exercise.id, 'sets', 1)} />
-                </View>
-                <View style={styles.planControlRow}>
-                  <IconButton icon={Minus} onPress={() => updateExercisePlan(exercise.id, 'targetLoadKg', -2.5)} />
-                  <Text style={styles.planControlText}>kg</Text>
-                  <IconButton icon={Plus} onPress={() => updateExercisePlan(exercise.id, 'targetLoadKg', 2.5)} />
-                </View>
+              <View style={styles.planControlsWide}>
+                <PlanNumberControl
+                  label="Series"
+                  value={plannedExercise.sets}
+                  suffix="x"
+                  onDecrease={() => bumpExercisePlan(exercise.id, 'sets', -1)}
+                  onIncrease={() => bumpExercisePlan(exercise.id, 'sets', 1)}
+                  onChange={(value) => updateExercisePlan(exercise.id, 'sets', value)}
+                />
+                <PlanNumberControl
+                  label="Reps"
+                  value={plannedExercise.reps}
+                  suffix="rep"
+                  onDecrease={() => bumpExercisePlan(exercise.id, 'reps', -1)}
+                  onIncrease={() => bumpExercisePlan(exercise.id, 'reps', 1)}
+                  onChange={(value) => updateExercisePlan(exercise.id, 'reps', value)}
+                />
+                <PlanNumberControl
+                  label="Carga"
+                  value={plannedExercise.targetLoadKg}
+                  suffix="kg"
+                  onDecrease={() => bumpExercisePlan(exercise.id, 'targetLoadKg', -2.5)}
+                  onIncrease={() => bumpExercisePlan(exercise.id, 'targetLoadKg', 2.5)}
+                  onChange={(value) => updateExercisePlan(exercise.id, 'targetLoadKg', value)}
+                />
+                <PlanNumberControl
+                  label="Descanso"
+                  value={plannedExercise.restSeconds}
+                  suffix="s"
+                  onDecrease={() => bumpExercisePlan(exercise.id, 'restSeconds', -15)}
+                  onIncrease={() => bumpExercisePlan(exercise.id, 'restSeconds', 15)}
+                  onChange={(value) => updateExercisePlan(exercise.id, 'restSeconds', value)}
+                />
                 <IconButton icon={Trash2} onPress={() => removeExerciseFromWorkout(exercise.id)} />
               </View>
             ) : (
@@ -268,32 +435,81 @@ export function TrainingScreen({
       })}
 
       <SectionTitle title="Biblioteca" />
+      {isEditingPlan && <Text style={styles.libraryHint}>Toque no + para colocar o exercicio no treino {activeWorkout.label}.</Text>}
       <View style={styles.libraryGrid}>
-        {exercises.map((exercise) => (
-          <View key={exercise.id} style={styles.libraryCard}>
-            <ExerciseMedia exercise={exercise} size="lg" />
-            <View style={styles.libraryBody}>
-              <Text style={styles.cardTitle}>{exercise.name}</Text>
-              <Text style={styles.cardText}>
-                {exercise.equipment} - {exercise.difficulty}
-              </Text>
-              <Text style={styles.executionCue}>{exercise.executionCue}</Text>
+        {exercises.map((exercise) => {
+          const alreadyAdded = activeWorkout.exercises.some((plannedExercise) => plannedExercise.exerciseId === exercise.id);
+
+          return (
+            <View key={exercise.id} style={styles.libraryCard}>
+              <ExerciseMedia exercise={exercise} size="lg" />
+              <View style={styles.libraryBody}>
+                <Text style={styles.cardTitle}>{exercise.name}</Text>
+                <Text style={styles.cardText}>
+                  {exercise.equipment} - {exercise.difficulty}
+                </Text>
+                <Text style={styles.executionCue}>{exercise.executionCue}</Text>
+              </View>
+              {isEditingPlan && (
+                <Pressable
+                  style={[styles.addExerciseButton, alreadyAdded && styles.addedExerciseButton]}
+                  onPress={() => addExerciseToWorkout(exercise.id)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Adicionar ${exercise.name}`}
+                >
+                  <Plus size={18} color={alreadyAdded ? colors.muted : colors.primary} />
+                </Pressable>
+              )}
             </View>
-            {isEditingPlan && (
-              <Pressable
-                style={styles.addExerciseButton}
-                onPress={() => addExerciseToWorkout(exercise.id)}
-                accessibilityRole="button"
-                accessibilityLabel={`Adicionar ${exercise.name}`}
-              >
-                <Plus size={18} color={colors.primary} />
-              </Pressable>
-            )}
-          </View>
-        ))}
+          );
+        })}
       </View>
     </>
   );
+}
+
+function createWorkoutDay(
+  id: string,
+  label: string,
+  title: string,
+  focus: string,
+  estimatedMinutes: number,
+  effortLevel: WorkoutDay['effortLevel'],
+  exerciseRows: [string, number, number, number, number][],
+): WorkoutDay {
+  return {
+    id,
+    label,
+    title,
+    focus,
+    estimatedMinutes,
+    effortLevel,
+    selectedCalorieSource: 'workout_estimate',
+    manualCalories: Math.round(estimatedMinutes * 7),
+    exercises: exerciseRows.map(([exerciseId, sets, reps, targetLoadKg, restSeconds]) => ({
+      exerciseId,
+      sets,
+      reps,
+      targetLoadKg,
+      restSeconds,
+    })),
+  };
+}
+
+function clampExerciseValue(field: 'sets' | 'reps' | 'targetLoadKg' | 'restSeconds', value: number) {
+  if (!Number.isFinite(value)) {
+    return field === 'targetLoadKg' ? 0 : 1;
+  }
+
+  if (field === 'targetLoadKg') {
+    return Math.max(0, Math.round(value * 2) / 2);
+  }
+
+  if (field === 'restSeconds') {
+    return Math.max(15, Math.round(value));
+  }
+
+  return Math.max(1, Math.round(value));
 }
 
 function IconButton({ icon: Icon, onPress }: { icon: typeof Plus; onPress: () => void }) {
@@ -304,18 +520,66 @@ function IconButton({ icon: Icon, onPress }: { icon: typeof Plus; onPress: () =>
   );
 }
 
+function PlanNumberControl({
+  label,
+  onChange,
+  onDecrease,
+  onIncrease,
+  suffix,
+  value,
+}: {
+  label: string;
+  onChange: (value: number) => void;
+  onDecrease: () => void;
+  onIncrease: () => void;
+  suffix: string;
+  value: number;
+}) {
+  const [draftValue, setDraftValue] = useState(String(value));
+
+  useEffect(() => {
+    setDraftValue(String(value));
+  }, [value]);
+
+  function commitDraft() {
+    const parsed = Number(draftValue.replace(',', '.'));
+    onChange(parsed);
+    setDraftValue(String(clampExerciseValue(label === 'Carga' ? 'targetLoadKg' : label === 'Descanso' ? 'restSeconds' : label === 'Reps' ? 'reps' : 'sets', parsed)));
+  }
+
+  return (
+    <View style={styles.planControlBox}>
+      <Text style={styles.planControlLabel}>{label}</Text>
+      <View style={styles.planControlRow}>
+        <IconButton icon={Minus} onPress={onDecrease} />
+        <TextInput
+          keyboardType="numeric"
+          style={styles.planControlInput}
+          value={draftValue}
+          onBlur={commitDraft}
+          onChangeText={setDraftValue}
+          onSubmitEditing={commitDraft}
+        />
+        <Text style={styles.planControlSuffix}>{suffix}</Text>
+        <IconButton icon={Plus} onPress={onIncrease} />
+      </View>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   weekPlan: {
-    flexDirection: 'row',
     gap: 10,
+    paddingRight: 20,
   },
   dayBox: {
     alignItems: 'center',
     backgroundColor: colors.surface,
     borderRadius: radii.md,
-    flex: 1,
     justifyContent: 'center',
     minHeight: 76,
+    paddingHorizontal: 12,
+    width: 104,
   },
   activeDayBox: {
     backgroundColor: colors.primary,
@@ -332,6 +596,13 @@ const styles = StyleSheet.create({
     color: '#7a837f',
     fontSize: 12,
     marginTop: 4,
+  },
+  dayFocus: {
+    color: colors.muted,
+    fontSize: 11,
+    fontWeight: '700',
+    marginTop: 4,
+    maxWidth: 82,
   },
   activeDayText: {
     color: '#c3d5cd',
@@ -422,6 +693,29 @@ const styles = StyleSheet.create({
   activeEditPlanButtonText: {
     color: colors.surface,
   },
+  templateRail: {
+    gap: 10,
+    paddingRight: 20,
+  },
+  templateCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radii.md,
+    minHeight: 94,
+    padding: 14,
+    width: 162,
+  },
+  templateName: {
+    color: colors.primary,
+    fontSize: 20,
+    fontWeight: '800',
+  },
+  templateDescription: {
+    color: colors.muted,
+    fontSize: 12,
+    fontWeight: '700',
+    lineHeight: 17,
+    marginTop: 6,
+  },
   caloriePanel: {
     backgroundColor: colors.surface,
     borderRadius: radii.md,
@@ -480,8 +774,12 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderRadius: radii.md,
     flexDirection: 'row',
+    flexWrap: 'wrap',
     marginBottom: 10,
     padding: 12,
+  },
+  editableListCard: {
+    alignItems: 'flex-start',
   },
   listBody: {
     flex: 1,
@@ -509,21 +807,49 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '800',
   },
-  planControls: {
-    alignItems: 'flex-end',
-    gap: 5,
+  planControlsWide: {
+    borderTopColor: colors.border,
+    borderTopWidth: 1,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 12,
+    paddingTop: 12,
+    width: '100%',
+  },
+  planControlBox: {
+    backgroundColor: colors.background,
+    borderRadius: radii.md,
+    flexGrow: 1,
+    minWidth: '47%',
+    padding: 8,
   },
   planControlRow: {
     alignItems: 'center',
     flexDirection: 'row',
-    gap: 4,
+    gap: 6,
   },
-  planControlText: {
+  planControlLabel: {
     color: colors.muted,
     fontSize: 11,
     fontWeight: '800',
-    minWidth: 20,
+    marginBottom: 6,
+    textTransform: 'uppercase',
+  },
+  planControlInput: {
+    color: colors.primary,
+    flex: 1,
+    fontSize: 16,
+    fontWeight: '800',
+    minHeight: 26,
+    padding: 0,
     textAlign: 'center',
+  },
+  planControlSuffix: {
+    color: colors.muted,
+    fontSize: 11,
+    fontWeight: '800',
+    minWidth: 24,
   },
   smallIconButton: {
     alignItems: 'center',
@@ -535,6 +861,13 @@ const styles = StyleSheet.create({
   },
   libraryGrid: {
     gap: 10,
+  },
+  libraryHint: {
+    color: colors.primaryMid,
+    fontSize: 13,
+    fontWeight: '800',
+    marginBottom: 10,
+    marginTop: -4,
   },
   libraryCard: {
     alignItems: 'center',
@@ -554,6 +887,9 @@ const styles = StyleSheet.create({
     height: 36,
     justifyContent: 'center',
     width: 36,
+  },
+  addedExerciseButton: {
+    backgroundColor: colors.background,
   },
   executionCue: {
     color: colors.primaryMid,
