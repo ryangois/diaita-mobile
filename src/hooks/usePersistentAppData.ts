@@ -20,6 +20,7 @@ const initialData: AppData = {
       legCm: 58,
     },
   ],
+  customExercises: [],
   foods,
   meals,
   profile,

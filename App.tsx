@@ -17,6 +17,7 @@ export default function App() {
     <AppShell activeTab={activeTab} onTabChange={setActiveTab}>
       {activeTab === 'today' && (
         <TodayScreen
+          customExercises={data.customExercises}
           foods={data.foods}
           meals={data.meals}
           profile={data.profile}
@@ -26,9 +27,11 @@ export default function App() {
       )}
       {activeTab === 'training' && (
         <TrainingScreen
+          customExercises={data.customExercises}
           profile={data.profile}
           workoutDays={data.workoutDays}
           workoutHistory={data.workoutHistory}
+          onCustomExercisesChange={(customExercises) => setData((current) => ({ ...current, customExercises }))}
           onWorkoutDaysChange={(workoutDays) => setData((current) => ({ ...current, workoutDays }))}
           onWorkoutHistoryChange={(workoutHistory) =>
             setData((current) => ({ ...current, workoutHistory }))

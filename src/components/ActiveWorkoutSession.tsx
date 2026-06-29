@@ -4,7 +4,7 @@ import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { getExerciseById } from '../data/training';
 import { colors, radii } from '../styles/theme';
-import type { WorkoutDay, WorkoutSession, WorkoutSetLog } from '../types';
+import type { Exercise, WorkoutDay, WorkoutSession, WorkoutSetLog } from '../types';
 import {
   calculateSessionVolume,
   countCompletedSets,
@@ -14,6 +14,7 @@ import {
 import { ExerciseMedia, ExerciseFallbackMedia } from './ExerciseMedia';
 
 type ActiveWorkoutSessionProps = {
+  exerciseLibrary?: Exercise[];
   session: WorkoutSession;
   workout: WorkoutDay;
   onCancel: () => void;
@@ -33,6 +34,7 @@ type PendingAction =
     };
 
 export function ActiveWorkoutSession({
+  exerciseLibrary,
   session,
   workout,
   onCancel,
@@ -43,8 +45,12 @@ export function ActiveWorkoutSession({
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
   const [transitionMessage, setTransitionMessage] = useState('Serie 1 pronta para registrar.');
   const currentWorkoutExercise = workout.exercises[session.currentExerciseIndex];
-  const currentExercise = getExerciseById(currentWorkoutExercise.exerciseId);
-  const exerciseLogs = getExerciseSetLogs(session, currentWorkoutExercise.exerciseId);
+  const currentExercise = currentWorkoutExercise
+    ? findExercise(currentWorkoutExercise.exerciseId, exerciseLibrary)
+    : null;
+  const exerciseLogs = currentWorkoutExercise
+    ? getExerciseSetLogs(session, currentWorkoutExercise.exerciseId)
+    : [];
   const currentSet = exerciseLogs[session.currentSetIndex] ?? exerciseLogs[0];
   const completedSets = countCompletedSets(session);
   const sessionVolume = calculateSessionVolume(session);
@@ -150,7 +156,7 @@ export function ActiveWorkoutSession({
 
     if (session.currentExerciseIndex < workout.exercises.length - 1) {
       const nextWorkoutExercise = workout.exercises[session.currentExerciseIndex + 1];
-      const nextExercise = getExerciseById(nextWorkoutExercise.exerciseId);
+      const nextExercise = findExercise(nextWorkoutExercise.exerciseId, exerciseLibrary);
 
       setPendingAction({
         type: 'update',
@@ -199,7 +205,7 @@ export function ActiveWorkoutSession({
           currentExerciseIndex: previousExerciseIndex,
           currentSetIndex: Math.max(previousLogs.length - 1, 0),
         },
-        `Voltando para ${getExerciseById(previousExercise.exerciseId)?.name ?? 'exercicio anterior'}.`,
+        `Voltando para ${findExercise(previousExercise.exerciseId, exerciseLibrary)?.name ?? 'exercicio anterior'}.`,
       );
     }
   }
@@ -218,7 +224,7 @@ export function ActiveWorkoutSession({
 
     if (session.currentExerciseIndex < workout.exercises.length - 1) {
       const nextWorkoutExercise = workout.exercises[session.currentExerciseIndex + 1];
-      const nextExercise = getExerciseById(nextWorkoutExercise.exerciseId);
+      const nextExercise = findExercise(nextWorkoutExercise.exerciseId, exerciseLibrary);
 
       updateSession(
         {
@@ -381,6 +387,10 @@ export function ActiveWorkoutSession({
       </Pressable>
     </View>
   );
+}
+
+function findExercise(exerciseId: string, exerciseLibrary?: Exercise[]) {
+  return exerciseLibrary?.find((exercise) => exercise.id === exerciseId) ?? getExerciseById(exerciseId);
 }
 
 function Stepper({

@@ -5,7 +5,7 @@ import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-
 import { ActiveWorkoutSession } from '../components/ActiveWorkoutSession';
 import { ExerciseMedia } from '../components/ExerciseMedia';
 import { SectionTitle } from '../components/SectionTitle';
-import { exercises, getExerciseById } from '../data/training';
+import { exercises as baseExercises, getExerciseById } from '../data/training';
 import { colors, radii } from '../styles/theme';
 import {
   calculateWorkoutVolume,
@@ -17,7 +17,7 @@ import {
   countCompletedSets,
   createWorkoutSession,
 } from '../utils/workoutSession';
-import type { UserProfile, WorkoutDay, WorkoutSession } from '../types';
+import type { Exercise, UserProfile, WorkoutDay, WorkoutSession } from '../types';
 
 type TrainingTemplate = {
   key: string;
@@ -122,17 +122,21 @@ const trainingTemplates: TrainingTemplate[] = [
 ];
 
 type TrainingScreenProps = {
+  customExercises: Exercise[];
   profile: UserProfile;
   workoutDays: WorkoutDay[];
   workoutHistory: WorkoutSession[];
+  onCustomExercisesChange: (exercises: Exercise[]) => void;
   onWorkoutDaysChange: (workoutDays: WorkoutDay[]) => void;
   onWorkoutHistoryChange: (workoutHistory: WorkoutSession[]) => void;
 };
 
 export function TrainingScreen({
+  customExercises,
   profile,
   workoutDays,
   workoutHistory,
+  onCustomExercisesChange,
   onWorkoutDaysChange,
   onWorkoutHistoryChange,
 }: TrainingScreenProps) {
@@ -140,18 +144,41 @@ export function TrainingScreen({
   const [activeSession, setActiveSession] = useState<WorkoutSession | null>(null);
   const [finishedSession, setFinishedSession] = useState<WorkoutSession | null>(null);
   const [isEditingPlan, setIsEditingPlan] = useState(false);
+  const [draftWorkout, setDraftWorkout] = useState({
+    label: '',
+    title: '',
+    focus: '',
+    estimatedMinutes: '55',
+  });
+  const [draftExercise, setDraftExercise] = useState({
+    name: '',
+    muscleGroup: '',
+    equipment: '',
+    difficulty: 'Iniciante' as Exercise['difficulty'],
+    mediaType: 'GIF' as Exercise['mediaType'],
+    executionCue: '',
+  });
 
   const activeWorkout = useMemo(() => {
     return workoutDays.find((workout) => workout.id === activeWorkoutId) ?? workoutDays[0];
   }, [activeWorkoutId, workoutDays]);
+  const exerciseLibrary = useMemo(() => [...baseExercises, ...customExercises], [customExercises]);
 
   const totalSets = activeWorkout.exercises.reduce((sum, item) => sum + item.sets, 0);
   const workoutVolume = calculateWorkoutVolume(activeWorkout);
   const selectedCalories = getSelectedWorkoutCalories(activeWorkout, profile);
   const calorieOptions = getWorkoutCalorieOptions(activeWorkout, profile);
+  const canStartWorkout = activeWorkout.exercises.length > 0;
 
   function updateActiveWorkout(update: WorkoutDay) {
     onWorkoutDaysChange(workoutDays.map((workout) => (workout.id === update.id ? update : workout)));
+  }
+
+  function updateActiveWorkoutField<Key extends keyof WorkoutDay>(field: Key, value: WorkoutDay[Key]) {
+    updateActiveWorkout({
+      ...activeWorkout,
+      [field]: value,
+    });
   }
 
   function applyTemplate(template: TrainingTemplate) {
@@ -174,6 +201,68 @@ export function TrainingScreen({
         ...activeWorkout.exercises,
         { exerciseId, sets: 3, reps: 10, targetLoadKg: 30, restSeconds: 75 },
       ],
+    });
+  }
+
+  function createBlankWorkout() {
+    const workoutTitle = draftWorkout.title.trim();
+
+    if (!workoutTitle) {
+      return;
+    }
+
+    const workoutLabel = draftWorkout.label.trim() || nextWorkoutLabel(workoutDays.length);
+    const workoutFocus = draftWorkout.focus.trim() || 'Novo foco';
+    const estimatedMinutes = Math.max(10, Math.round(readNumber(draftWorkout.estimatedMinutes)));
+    const newWorkout: WorkoutDay = {
+      id: `custom-workout-${Date.now()}`,
+      label: workoutLabel,
+      title: workoutTitle,
+      focus: workoutFocus,
+      estimatedMinutes,
+      effortLevel: 'moderado',
+      selectedCalorieSource: 'workout_estimate',
+      manualCalories: Math.round(estimatedMinutes * 7),
+      exercises: [],
+    };
+
+    onWorkoutDaysChange([...workoutDays, newWorkout]);
+    setActiveWorkoutId(newWorkout.id);
+    setIsEditingPlan(true);
+    setDraftWorkout({
+      label: '',
+      title: '',
+      focus: '',
+      estimatedMinutes: '55',
+    });
+  }
+
+  function createCustomExercise() {
+    const exerciseName = draftExercise.name.trim();
+
+    if (!exerciseName) {
+      return;
+    }
+
+    const newExercise: Exercise = {
+      id: `custom-exercise-${exerciseName.toLowerCase().replace(/\s+/g, '-')}-${Date.now()}`,
+      name: exerciseName,
+      muscleGroup: draftExercise.muscleGroup.trim() || 'Personalizado',
+      equipment: draftExercise.equipment.trim() || 'Livre',
+      difficulty: draftExercise.difficulty,
+      mediaType: draftExercise.mediaType,
+      executionCue: draftExercise.executionCue.trim() || 'Execute com controle, amplitude segura e postura estavel.',
+    };
+
+    onCustomExercisesChange([...customExercises, newExercise]);
+    addExerciseToWorkout(newExercise.id);
+    setDraftExercise({
+      name: '',
+      muscleGroup: '',
+      equipment: '',
+      difficulty: 'Iniciante',
+      mediaType: 'GIF',
+      executionCue: '',
     });
   }
 
@@ -221,6 +310,7 @@ export function TrainingScreen({
   if (activeSession) {
     return (
       <ActiveWorkoutSession
+        exerciseLibrary={exerciseLibrary}
         session={activeSession}
         workout={activeWorkout}
         onCancel={() => setActiveSession(null)}
@@ -285,8 +375,12 @@ export function TrainingScreen({
       </View>
 
       <Pressable
-        style={styles.startButton}
+        style={[styles.startButton, !canStartWorkout && styles.disabledStartButton]}
         onPress={() => {
+          if (!canStartWorkout) {
+            return;
+          }
+
           setFinishedSession(null);
           setActiveSession(createWorkoutSession(activeWorkout));
         }}
@@ -294,7 +388,7 @@ export function TrainingScreen({
         accessibilityLabel={`Iniciar treino ${activeWorkout.label}`}
       >
         <Play size={20} color={colors.surface} fill={colors.surface} />
-        <Text style={styles.startButtonText}>Iniciar treino</Text>
+        <Text style={styles.startButtonText}>{canStartWorkout ? 'Iniciar treino' : 'Adicione exercicios para iniciar'}</Text>
       </Pressable>
 
       {finishedSession && (
@@ -339,6 +433,98 @@ export function TrainingScreen({
               </Pressable>
             ))}
           </ScrollView>
+
+          <SectionTitle title="Criar treino" />
+          <View style={styles.creationPanel}>
+            <View style={styles.inputGrid}>
+              <TextField
+                label="Letra"
+                value={draftWorkout.label}
+                placeholder={nextWorkoutLabel(workoutDays.length)}
+                onChangeText={(label) => setDraftWorkout((current) => ({ ...current, label }))}
+              />
+              <TextField
+                label="Duracao"
+                value={draftWorkout.estimatedMinutes}
+                keyboardType="numeric"
+                suffix="min"
+                onChangeText={(estimatedMinutes) =>
+                  setDraftWorkout((current) => ({ ...current, estimatedMinutes }))
+                }
+              />
+            </View>
+            <TextField
+              label="Nome do treino"
+              value={draftWorkout.title}
+              placeholder="Peito e triceps"
+              onChangeText={(title) => setDraftWorkout((current) => ({ ...current, title }))}
+            />
+            <TextField
+              label="Foco"
+              value={draftWorkout.focus}
+              placeholder="Hipertrofia superior"
+              onChangeText={(focus) => setDraftWorkout((current) => ({ ...current, focus }))}
+            />
+            <Pressable
+              style={styles.createButton}
+              onPress={createBlankWorkout}
+              accessibilityRole="button"
+              accessibilityLabel="Criar treino novo"
+            >
+              <Plus size={18} color={colors.surface} />
+              <Text style={styles.createButtonText}>Criar treino vazio</Text>
+            </Pressable>
+          </View>
+
+          <SectionTitle title="Editar treino atual" />
+          <View style={styles.creationPanel}>
+            <View style={styles.inputGrid}>
+              <TextField
+                label="Etiqueta"
+                value={activeWorkout.label}
+                onChangeText={(label) => updateActiveWorkoutField('label', label)}
+              />
+              <TextField
+                label="Duracao"
+                value={String(activeWorkout.estimatedMinutes)}
+                keyboardType="numeric"
+                suffix="min"
+                onChangeText={(estimatedMinutes) =>
+                  updateActiveWorkoutField('estimatedMinutes', Math.max(10, Math.round(readNumber(estimatedMinutes))))
+                }
+              />
+            </View>
+            <TextField
+              label="Nome"
+              value={activeWorkout.title}
+              onChangeText={(title) => updateActiveWorkoutField('title', title)}
+            />
+            <TextField
+              label="Foco"
+              value={activeWorkout.focus}
+              onChangeText={(focus) => updateActiveWorkoutField('focus', focus)}
+            />
+            <Text style={styles.fieldLabel}>Intensidade</Text>
+            <View style={styles.segmentedRow}>
+              {(['leve', 'moderado', 'intenso', 'muito_intenso'] as WorkoutDay['effortLevel'][]).map((level) => {
+                const isActive = activeWorkout.effortLevel === level;
+
+                return (
+                  <Pressable
+                    key={level}
+                    style={[styles.segmentChip, isActive && styles.activeSegmentChip]}
+                    onPress={() => updateActiveWorkoutField('effortLevel', level)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Definir intensidade ${level}`}
+                  >
+                    <Text style={[styles.segmentChipText, isActive && styles.activeSegmentChipText]}>
+                      {level.replace('_', ' ')}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
         </>
       )}
 
@@ -373,7 +559,7 @@ export function TrainingScreen({
 
       <SectionTitle title={`Treino ${activeWorkout.label}`} />
       {activeWorkout.exercises.map((plannedExercise) => {
-        const exercise = getExerciseById(plannedExercise.exerciseId);
+        const exercise = findExerciseById(plannedExercise.exerciseId, exerciseLibrary);
 
         if (!exercise) {
           return null;
@@ -436,8 +622,88 @@ export function TrainingScreen({
 
       <SectionTitle title="Biblioteca" />
       {isEditingPlan && <Text style={styles.libraryHint}>Toque no + para colocar o exercicio no treino {activeWorkout.label}.</Text>}
+      {isEditingPlan && (
+        <View style={styles.creationPanel}>
+          <Text style={styles.creationTitle}>Criar exercicio</Text>
+          <TextField
+            label="Nome"
+            value={draftExercise.name}
+            placeholder="Rosca direta"
+            onChangeText={(name) => setDraftExercise((current) => ({ ...current, name }))}
+          />
+          <View style={styles.inputGrid}>
+            <TextField
+              label="Grupo"
+              value={draftExercise.muscleGroup}
+              placeholder="Biceps"
+              onChangeText={(muscleGroup) => setDraftExercise((current) => ({ ...current, muscleGroup }))}
+            />
+            <TextField
+              label="Equipamento"
+              value={draftExercise.equipment}
+              placeholder="Barra"
+              onChangeText={(equipment) => setDraftExercise((current) => ({ ...current, equipment }))}
+            />
+          </View>
+          <Text style={styles.fieldLabel}>Dificuldade</Text>
+          <View style={styles.segmentedRow}>
+            {(['Iniciante', 'Intermediario', 'Avancado'] as Exercise['difficulty'][]).map((difficulty) => {
+              const isActive = draftExercise.difficulty === difficulty;
+
+              return (
+                <Pressable
+                  key={difficulty}
+                  style={[styles.segmentChip, isActive && styles.activeSegmentChip]}
+                  onPress={() => setDraftExercise((current) => ({ ...current, difficulty }))}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Definir dificuldade ${difficulty}`}
+                >
+                  <Text style={[styles.segmentChipText, isActive && styles.activeSegmentChipText]}>
+                    {difficulty}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+          <Text style={styles.fieldLabel}>Midia</Text>
+          <View style={styles.segmentedRow}>
+            {(['GIF', '3D'] as Exercise['mediaType'][]).map((mediaType) => {
+              const isActive = draftExercise.mediaType === mediaType;
+
+              return (
+                <Pressable
+                  key={mediaType}
+                  style={[styles.segmentChip, isActive && styles.activeSegmentChip]}
+                  onPress={() => setDraftExercise((current) => ({ ...current, mediaType }))}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Definir midia ${mediaType}`}
+                >
+                  <Text style={[styles.segmentChipText, isActive && styles.activeSegmentChipText]}>
+                    {mediaType}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+          <TextField
+            label="Dica de execucao"
+            value={draftExercise.executionCue}
+            placeholder="Cotovelos fixos e movimento controlado."
+            onChangeText={(executionCue) => setDraftExercise((current) => ({ ...current, executionCue }))}
+          />
+          <Pressable
+            style={styles.createButton}
+            onPress={createCustomExercise}
+            accessibilityRole="button"
+            accessibilityLabel="Criar exercicio personalizado"
+          >
+            <Plus size={18} color={colors.surface} />
+            <Text style={styles.createButtonText}>Criar e adicionar ao treino</Text>
+          </Pressable>
+        </View>
+      )}
       <View style={styles.libraryGrid}>
-        {exercises.map((exercise) => {
+        {exerciseLibrary.map((exercise) => {
           const alreadyAdded = activeWorkout.exercises.some((plannedExercise) => plannedExercise.exerciseId === exercise.id);
 
           return (
@@ -466,6 +732,20 @@ export function TrainingScreen({
       </View>
     </>
   );
+}
+
+function findExerciseById(exerciseId: string, exerciseLibrary: Exercise[]) {
+  return exerciseLibrary.find((exercise) => exercise.id === exerciseId) ?? getExerciseById(exerciseId);
+}
+
+function nextWorkoutLabel(workoutCount: number) {
+  const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  return letters[workoutCount] ?? `${workoutCount + 1}`;
+}
+
+function readNumber(value: string) {
+  const parsed = Number(value.replace(',', '.'));
+  return Number.isFinite(parsed) ? parsed : 0;
 }
 
 function createWorkoutDay(
@@ -517,6 +797,39 @@ function IconButton({ icon: Icon, onPress }: { icon: typeof Plus; onPress: () =>
     <Pressable style={styles.smallIconButton} onPress={onPress}>
       <Icon size={15} color={colors.primary} />
     </Pressable>
+  );
+}
+
+function TextField({
+  keyboardType,
+  label,
+  onChangeText,
+  placeholder,
+  suffix,
+  value,
+}: {
+  keyboardType?: 'default' | 'numeric';
+  label: string;
+  onChangeText: (value: string) => void;
+  placeholder?: string;
+  suffix?: string;
+  value: string;
+}) {
+  return (
+    <View style={styles.fieldBox}>
+      <Text style={styles.fieldLabel}>{label}</Text>
+      <View style={styles.fieldInputRow}>
+        <TextInput
+          keyboardType={keyboardType}
+          placeholder={placeholder}
+          placeholderTextColor={colors.muted}
+          style={styles.fieldInput}
+          value={value}
+          onChangeText={onChangeText}
+        />
+        {suffix && <Text style={styles.fieldSuffix}>{suffix}</Text>}
+      </View>
+    </View>
   );
 }
 
@@ -655,6 +968,9 @@ const styles = StyleSheet.create({
     marginTop: 12,
     minHeight: 52,
   },
+  disabledStartButton: {
+    backgroundColor: colors.muted,
+  },
   startButtonText: {
     color: colors.surface,
     fontSize: 15,
@@ -715,6 +1031,91 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     lineHeight: 17,
     marginTop: 6,
+  },
+  creationPanel: {
+    backgroundColor: colors.surface,
+    borderRadius: radii.md,
+    gap: 10,
+    padding: 12,
+  },
+  creationTitle: {
+    color: colors.primary,
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  inputGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  fieldBox: {
+    backgroundColor: colors.background,
+    borderRadius: radii.md,
+    flexGrow: 1,
+    minWidth: '47%',
+    padding: 10,
+  },
+  fieldLabel: {
+    color: colors.muted,
+    fontSize: 11,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+  },
+  fieldInputRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 6,
+    marginTop: 5,
+  },
+  fieldInput: {
+    color: colors.text,
+    flex: 1,
+    fontSize: 15,
+    fontWeight: '800',
+    minHeight: 30,
+    padding: 0,
+  },
+  fieldSuffix: {
+    color: colors.primaryMid,
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  segmentedRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  segmentChip: {
+    backgroundColor: colors.background,
+    borderRadius: radii.md,
+    minHeight: 34,
+    justifyContent: 'center',
+    paddingHorizontal: 11,
+  },
+  activeSegmentChip: {
+    backgroundColor: colors.primary,
+  },
+  segmentChipText: {
+    color: colors.primary,
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  activeSegmentChipText: {
+    color: colors.surface,
+  },
+  createButton: {
+    alignItems: 'center',
+    backgroundColor: colors.secondary,
+    borderRadius: radii.md,
+    flexDirection: 'row',
+    gap: 8,
+    justifyContent: 'center',
+    minHeight: 46,
+  },
+  createButtonText: {
+    color: colors.surface,
+    fontSize: 14,
+    fontWeight: '800',
   },
   caloriePanel: {
     backgroundColor: colors.surface,

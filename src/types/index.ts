@@ -161,6 +161,7 @@ export type ProgressInsight = {
 
 export type AppData = {
   bodyMetrics: BodyMetric[];
+  customExercises: Exercise[];
   foods: Food[];
   meals: Meal[];
   profile: UserProfile;

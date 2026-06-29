@@ -7,11 +7,12 @@ import { SectionTitle } from '../components/SectionTitle';
 import { StatPill } from '../components/StatPill';
 import { getExerciseById } from '../data/training';
 import { colors, radii } from '../styles/theme';
-import type { Food, Meal, UserProfile, WorkoutDay, WorkoutSession } from '../types';
+import type { Exercise, Food, Meal, UserProfile, WorkoutDay, WorkoutSession } from '../types';
 import { getSelectedWorkoutCalories } from '../utils/calories';
 import { calculateNutritionTotals } from '../utils/nutrition';
 
 type TodayScreenProps = {
+  customExercises: Exercise[];
   foods: Food[];
   meals: Meal[];
   profile: UserProfile;
@@ -19,11 +20,11 @@ type TodayScreenProps = {
   workoutHistory: WorkoutSession[];
 };
 
-export function TodayScreen({ foods, meals, profile, workoutDays, workoutHistory }: TodayScreenProps) {
+export function TodayScreen({ customExercises, foods, meals, profile, workoutDays, workoutHistory }: TodayScreenProps) {
   const todayWorkout = workoutDays[0];
   const nutritionTotals = calculateNutritionTotals(meals, foods);
   const firstWorkoutExercise = todayWorkout.exercises[0];
-  const firstExercise = getExerciseById(firstWorkoutExercise.exerciseId);
+  const firstExercise = getExerciseById(firstWorkoutExercise.exerciseId) ?? customExercises.find((exercise) => exercise.id === firstWorkoutExercise.exerciseId);
   const workoutCalories = getSelectedWorkoutCalories(todayWorkout, profile);
   const proteinProgress = Math.round((nutritionTotals.protein / profile.dailyProteinGoal) * 100);
 
