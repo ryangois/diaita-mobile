@@ -28,10 +28,18 @@ export default function App() {
       {activeTab === 'training' && (
         <TrainingScreen
           customExercises={data.customExercises}
+          favoriteExerciseIds={data.favoriteExerciseIds}
           profile={data.profile}
+          recentExerciseIds={data.recentExerciseIds}
           workoutDays={data.workoutDays}
           workoutHistory={data.workoutHistory}
           onCustomExercisesChange={(customExercises) => setData((current) => ({ ...current, customExercises }))}
+          onFavoriteExerciseIdsChange={(favoriteExerciseIds) =>
+            setData((current) => ({ ...current, favoriteExerciseIds }))
+          }
+          onRecentExerciseIdsChange={(recentExerciseIds) =>
+            setData((current) => ({ ...current, recentExerciseIds }))
+          }
           onWorkoutDaysChange={(workoutDays) => setData((current) => ({ ...current, workoutDays }))}
           onWorkoutHistoryChange={(workoutHistory) =>
             setData((current) => ({ ...current, workoutHistory }))
@@ -43,13 +51,16 @@ export default function App() {
           foods={data.foods}
           isLoaded={isLoaded}
           meals={data.meals}
+          mealTemplates={data.mealTemplates}
           profile={data.profile}
           onFoodsChange={(foods) => setData((current) => ({ ...current, foods }))}
           onMealsChange={(meals) => setData((current) => ({ ...current, meals }))}
+          onMealTemplatesChange={(mealTemplates) => setData((current) => ({ ...current, mealTemplates }))}
         />
       )}
       {activeTab === 'progress' && (
         <ProgressScreen
+          customExercises={data.customExercises}
           foods={data.foods}
           bodyMetrics={data.bodyMetrics}
           meals={data.meals}

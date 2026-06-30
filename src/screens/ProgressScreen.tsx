@@ -1,15 +1,17 @@
-import { Plus, Scale } from 'lucide-react-native';
+import { Dumbbell, Plus, Scale, Trophy } from 'lucide-react-native';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { SectionTitle } from '../components/SectionTitle';
+import { exercises as baseExercises } from '../data/training';
 import { loadChart, progressInsights } from '../data/progress';
 import { colors, radii } from '../styles/theme';
-import type { BodyMetric, Food, Meal, UserProfile, WorkoutSession } from '../types';
+import type { BodyMetric, Exercise, Food, Meal, UserProfile, WorkoutSession } from '../types';
 import { calculateNutritionTotals } from '../utils/nutrition';
 import { calculateSessionVolume, countCompletedSets } from '../utils/workoutSession';
 
 type ProgressScreenProps = {
   bodyMetrics: BodyMetric[];
+  customExercises: Exercise[];
   foods: Food[];
   meals: Meal[];
   onBodyMetricsChange: (metrics: BodyMetric[]) => void;
@@ -19,6 +21,7 @@ type ProgressScreenProps = {
 
 export function ProgressScreen({
   bodyMetrics,
+  customExercises,
   foods,
   meals,
   onBodyMetricsChange,
@@ -38,6 +41,21 @@ export function ProgressScreen({
     (total, session) => total + countCompletedSets(session),
     0,
   );
+  const exerciseLibrary = [...baseExercises, ...customExercises];
+  const now = Date.now();
+  const oneWeekMs = 7 * 24 * 60 * 60 * 1000;
+  const currentWeekSessions = workoutHistory.filter(
+    (session) => now - new Date(session.startedAt).getTime() <= oneWeekMs,
+  );
+  const previousWeekSessions = workoutHistory.filter((session) => {
+    const age = now - new Date(session.startedAt).getTime();
+    return age > oneWeekMs && age <= oneWeekMs * 2;
+  });
+  const currentWeekVolume = sumSessionVolume(currentWeekSessions);
+  const previousWeekVolume = sumSessionVolume(previousWeekSessions);
+  const exercisePrs = getExercisePrs(workoutHistory, exerciseLibrary);
+  const muscleVolumes = getMuscleVolumes(currentWeekSessions, exerciseLibrary);
+  const progressionAlerts = getProgressionAlerts(workoutHistory, exerciseLibrary);
   const dynamicInsights = [
     {
       id: 'history-count',
@@ -163,8 +181,144 @@ export function ProgressScreen({
           </View>
         ))
       )}
+
+      <SectionTitle title="PRs pessoais" />
+      {exercisePrs.length === 0 ? (
+        <View style={styles.emptyHistory}>
+          <Text style={styles.cardTitle}>Sem PRs ainda</Text>
+          <Text style={styles.cardText}>Finalize treinos para registrar maiores cargas por exercicio.</Text>
+        </View>
+      ) : (
+        exercisePrs.slice(0, 5).map((pr) => (
+          <View key={pr.exerciseId} style={styles.historyRow}>
+            <View style={styles.metricIcon}>
+              <Trophy size={20} color={colors.primary} />
+            </View>
+            <View style={styles.insightBody}>
+              <Text style={styles.cardTitle}>{pr.name}</Text>
+              <Text style={styles.cardText}>{pr.reps} reps no melhor set</Text>
+            </View>
+            <Text style={styles.insightValue}>{pr.loadKg} kg</Text>
+          </View>
+        ))
+      )}
+
+      <SectionTitle title="Volume semanal por musculo" />
+      {muscleVolumes.map((row) => (
+        <View key={row.muscle} style={styles.historyRow}>
+          <View style={styles.metricIcon}>
+            <Dumbbell size={20} color={colors.primary} />
+          </View>
+          <View style={styles.insightBody}>
+            <Text style={styles.cardTitle}>{row.muscle}</Text>
+            <Text style={styles.cardText}>ultimos 7 dias</Text>
+          </View>
+          <Text style={styles.insightValue}>{Math.round(row.volume).toLocaleString('pt-BR')} kg</Text>
+        </View>
+      ))}
+
+      <SectionTitle title="Comparacao semanal" />
+      <View style={styles.insightRow}>
+        <View style={styles.insightBody}>
+          <Text style={styles.cardTitle}>Semana atual vs anterior</Text>
+          <Text style={styles.cardText}>
+            {Math.round(currentWeekVolume).toLocaleString('pt-BR')} kg contra{' '}
+            {Math.round(previousWeekVolume).toLocaleString('pt-BR')} kg
+          </Text>
+        </View>
+        <Text style={styles.insightValue}>
+          {currentWeekVolume - previousWeekVolume >= 0 ? '+' : ''}
+          {Math.round(currentWeekVolume - previousWeekVolume).toLocaleString('pt-BR')}
+        </Text>
+      </View>
+
+      <SectionTitle title="Alertas de progressao" />
+      {progressionAlerts.length === 0 ? (
+        <View style={styles.emptyHistory}>
+          <Text style={styles.cardTitle}>Nenhum alerta ainda</Text>
+          <Text style={styles.cardText}>Quando voce repetir reps com boa carga, o app sugere subir peso.</Text>
+        </View>
+      ) : (
+        progressionAlerts.slice(0, 4).map((alert) => (
+          <View key={alert.id} style={styles.insightRow}>
+            <View style={styles.insightBody}>
+              <Text style={styles.cardTitle}>{alert.name}</Text>
+              <Text style={styles.cardText}>Aumente 2,5kg no proximo treino.</Text>
+            </View>
+            <Text style={styles.insightValue}>{alert.loadKg} kg</Text>
+          </View>
+        ))
+      )}
     </>
   );
+}
+
+function sumSessionVolume(sessions: WorkoutSession[]) {
+  return sessions.reduce((total, session) => total + calculateSessionVolume(session), 0);
+}
+
+function getExercisePrs(workoutHistory: WorkoutSession[], exerciseLibrary: Exercise[]) {
+  const prs = new Map<string, { exerciseId: string; loadKg: number; name: string; reps: number }>();
+
+  workoutHistory.forEach((session) => {
+    session.setLogs.forEach((setLog) => {
+      if (!setLog.completed) {
+        return;
+      }
+
+      const current = prs.get(setLog.exerciseId);
+      if (!current || setLog.actualLoadKg > current.loadKg) {
+        prs.set(setLog.exerciseId, {
+          exerciseId: setLog.exerciseId,
+          loadKg: setLog.actualLoadKg,
+          name: findExerciseName(setLog.exerciseId, exerciseLibrary),
+          reps: setLog.actualReps,
+        });
+      }
+    });
+  });
+
+  return Array.from(prs.values()).sort((first, second) => second.loadKg - first.loadKg);
+}
+
+function getMuscleVolumes(sessions: WorkoutSession[], exerciseLibrary: Exercise[]) {
+  const volumes = new Map<string, number>();
+
+  sessions.forEach((session) => {
+    session.setLogs.forEach((setLog) => {
+      if (!setLog.completed) {
+        return;
+      }
+
+      const exercise = exerciseLibrary.find((item) => item.id === setLog.exerciseId);
+      const muscle = exercise?.muscleGroup ?? 'Outros';
+      volumes.set(muscle, (volumes.get(muscle) ?? 0) + setLog.actualReps * setLog.actualLoadKg);
+    });
+  });
+
+  return Array.from(volumes.entries())
+    .map(([muscle, volume]) => ({ muscle, volume }))
+    .sort((first, second) => second.volume - first.volume);
+}
+
+function getProgressionAlerts(workoutHistory: WorkoutSession[], exerciseLibrary: Exercise[]) {
+  const latestSession = workoutHistory[0];
+
+  if (!latestSession) {
+    return [];
+  }
+
+  return latestSession.setLogs
+    .filter((setLog) => setLog.completed && setLog.actualReps >= setLog.targetReps && setLog.actualLoadKg >= setLog.targetLoadKg)
+    .map((setLog) => ({
+      id: setLog.id,
+      loadKg: setLog.actualLoadKg,
+      name: findExerciseName(setLog.exerciseId, exerciseLibrary),
+    }));
+}
+
+function findExerciseName(exerciseId: string, exerciseLibrary: Exercise[]) {
+  return exerciseLibrary.find((exercise) => exercise.id === exerciseId)?.name ?? 'Exercicio';
 }
 
 const styles = StyleSheet.create({

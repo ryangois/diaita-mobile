@@ -21,9 +21,12 @@ const initialData: AppData = {
     },
   ],
   customExercises: [],
+  favoriteExerciseIds: [],
   foods,
   meals,
+  mealTemplates: [],
   profile,
+  recentExerciseIds: [],
   workoutDays,
   workoutHistory: [],
 };

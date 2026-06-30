@@ -117,6 +117,13 @@ export type BodyMetric = {
 export type Meal = {
   id: string;
   name: string;
+  time?: string;
+  items: MealItem[];
+};
+
+export type MealTemplate = {
+  id: string;
+  name: string;
   items: MealItem[];
 };
 
@@ -136,6 +143,7 @@ export type Food = {
     grams: number;
     label: string;
   };
+  barcode?: string;
 };
 
 export type DraftFood = {
@@ -172,9 +180,12 @@ export type ProgressInsight = {
 export type AppData = {
   bodyMetrics: BodyMetric[];
   customExercises: Exercise[];
+  favoriteExerciseIds: string[];
   foods: Food[];
   meals: Meal[];
+  mealTemplates: MealTemplate[];
   profile: UserProfile;
+  recentExerciseIds: string[];
   workoutDays: WorkoutDay[];
   workoutHistory: WorkoutSession[];
 };

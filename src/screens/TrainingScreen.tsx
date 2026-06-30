@@ -1,4 +1,4 @@
-import { ArrowDown, ArrowUp, CheckCircle2, Clock3, Copy, Dumbbell, Flame, Minus, Pencil, Play, Plus, Search, Target, Trash2 } from 'lucide-react-native';
+import { ArrowDown, ArrowUp, CheckCircle2, Clock3, Copy, Dumbbell, Flame, Heart, Minus, Pencil, Play, Plus, Search, Target, Trash2 } from 'lucide-react-native';
 import { useEffect, useMemo, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
@@ -124,20 +124,28 @@ const trainingTemplates: TrainingTemplate[] = [
 
 type TrainingScreenProps = {
   customExercises: Exercise[];
+  favoriteExerciseIds: string[];
   profile: UserProfile;
+  recentExerciseIds: string[];
   workoutDays: WorkoutDay[];
   workoutHistory: WorkoutSession[];
   onCustomExercisesChange: (exercises: Exercise[]) => void;
+  onFavoriteExerciseIdsChange: (exerciseIds: string[]) => void;
+  onRecentExerciseIdsChange: (exerciseIds: string[]) => void;
   onWorkoutDaysChange: (workoutDays: WorkoutDay[]) => void;
   onWorkoutHistoryChange: (workoutHistory: WorkoutSession[]) => void;
 };
 
 export function TrainingScreen({
   customExercises,
+  favoriteExerciseIds,
   profile,
+  recentExerciseIds,
   workoutDays,
   workoutHistory,
   onCustomExercisesChange,
+  onFavoriteExerciseIdsChange,
+  onRecentExerciseIdsChange,
   onWorkoutDaysChange,
   onWorkoutHistoryChange,
 }: TrainingScreenProps) {
@@ -147,6 +155,8 @@ export function TrainingScreen({
   const [isEditingPlan, setIsEditingPlan] = useState(false);
   const [exerciseSearch, setExerciseSearch] = useState('');
   const [selectedMuscleGroup, setSelectedMuscleGroup] = useState('Todos');
+  const [selectedEquipment, setSelectedEquipment] = useState('Todos');
+  const [selectedDifficulty, setSelectedDifficulty] = useState('Todos');
   const [draftWorkout, setDraftWorkout] = useState({
     label: '',
     title: '',
@@ -170,20 +180,32 @@ export function TrainingScreen({
     () => ['Todos', ...Array.from(new Set(exerciseLibrary.map((exercise) => exercise.muscleGroup)))],
     [exerciseLibrary],
   );
+  const equipmentFilters = useMemo(
+    () => ['Todos', ...Array.from(new Set(exerciseLibrary.map((exercise) => exercise.equipment)))],
+    [exerciseLibrary],
+  );
   const filteredExerciseLibrary = useMemo(() => {
     const search = exerciseSearch.trim().toLowerCase();
 
     return exerciseLibrary.filter((exercise) => {
       const matchesGroup = selectedMuscleGroup === 'Todos' || exercise.muscleGroup === selectedMuscleGroup;
+      const matchesEquipment = selectedEquipment === 'Todos' || exercise.equipment === selectedEquipment;
+      const matchesDifficulty = selectedDifficulty === 'Todos' || exercise.difficulty === selectedDifficulty;
       const matchesSearch =
         !search ||
         exercise.name.toLowerCase().includes(search) ||
         exercise.muscleGroup.toLowerCase().includes(search) ||
         exercise.equipment.toLowerCase().includes(search);
 
-      return matchesGroup && matchesSearch;
+      return matchesGroup && matchesEquipment && matchesDifficulty && matchesSearch;
+    }).sort((first, second) => {
+      const firstFavorite = favoriteExerciseIds.includes(first.id) ? 1 : 0;
+      const secondFavorite = favoriteExerciseIds.includes(second.id) ? 1 : 0;
+      const firstRecent = recentExerciseIds.includes(first.id) ? 1 : 0;
+      const secondRecent = recentExerciseIds.includes(second.id) ? 1 : 0;
+      return secondFavorite - firstFavorite || secondRecent - firstRecent || first.name.localeCompare(second.name);
     });
-  }, [exerciseLibrary, exerciseSearch, selectedMuscleGroup]);
+  }, [exerciseLibrary, exerciseSearch, favoriteExerciseIds, recentExerciseIds, selectedDifficulty, selectedEquipment, selectedMuscleGroup]);
 
   const totalSets = activeWorkout.exercises.reduce((sum, item) => sum + getWorkoutExercisePlannedSets(item).length, 0);
   const workoutVolume = calculateWorkoutVolume(activeWorkout);
@@ -210,6 +232,7 @@ export function TrainingScreen({
   }
 
   function addExerciseToWorkout(exerciseId: string) {
+    rememberRecentExercise(exerciseId);
     const existingExercise = activeWorkout.exercises.find((exercise) => exercise.exerciseId === exerciseId);
 
     if (existingExercise) {
@@ -239,6 +262,19 @@ export function TrainingScreen({
         },
       ],
     });
+  }
+
+  function rememberRecentExercise(exerciseId: string) {
+    onRecentExerciseIdsChange([exerciseId, ...recentExerciseIds.filter((id) => id !== exerciseId)].slice(0, 8));
+  }
+
+  function toggleFavoriteExercise(exerciseId: string) {
+    if (favoriteExerciseIds.includes(exerciseId)) {
+      onFavoriteExerciseIdsChange(favoriteExerciseIds.filter((id) => id !== exerciseId));
+      return;
+    }
+
+    onFavoriteExerciseIdsChange([exerciseId, ...favoriteExerciseIds]);
   }
 
   function duplicateExercise(workoutExerciseKey: string) {
@@ -1030,11 +1066,51 @@ export function TrainingScreen({
               );
             })}
           </ScrollView>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterChips}>
+            {equipmentFilters.map((equipment) => {
+              const isSelected = equipment === selectedEquipment;
+
+              return (
+                <Pressable
+                  key={equipment}
+                  style={[styles.filterChip, isSelected && styles.activeFilterChip]}
+                  onPress={() => setSelectedEquipment(equipment)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Filtrar equipamento ${equipment}`}
+                >
+                  <Text style={[styles.filterChipText, isSelected && styles.activeFilterChipText]}>
+                    {equipment}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterChips}>
+            {(['Todos', 'Iniciante', 'Intermediario', 'Avancado'] as const).map((difficulty) => {
+              const isSelected = difficulty === selectedDifficulty;
+
+              return (
+                <Pressable
+                  key={difficulty}
+                  style={[styles.filterChip, isSelected && styles.activeFilterChip]}
+                  onPress={() => setSelectedDifficulty(difficulty)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Filtrar dificuldade ${difficulty}`}
+                >
+                  <Text style={[styles.filterChipText, isSelected && styles.activeFilterChipText]}>
+                    {difficulty}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
         </View>
       )}
       <View style={styles.libraryGrid}>
         {filteredExerciseLibrary.map((exercise) => {
           const alreadyAdded = activeWorkout.exercises.some((plannedExercise) => plannedExercise.exerciseId === exercise.id);
+          const isFavorite = favoriteExerciseIds.includes(exercise.id);
+          const isRecent = recentExerciseIds.includes(exercise.id);
 
           return (
             <View key={exercise.id} style={styles.libraryCard}>
@@ -1044,18 +1120,36 @@ export function TrainingScreen({
                 <Text style={styles.cardText}>
                   {exercise.equipment} - {exercise.difficulty}
                 </Text>
+                <View style={styles.librarySignals}>
+                  {isFavorite && <Text style={styles.librarySignal}>Favorito</Text>}
+                  {isRecent && <Text style={styles.librarySignal}>Recente</Text>}
+                </View>
                 <Text style={styles.executionCue}>{exercise.executionCue}</Text>
               </View>
               {isEditingPlan && (
-                <Pressable
-                  style={[styles.addExerciseButton, alreadyAdded && styles.addedExerciseButton]}
-                  onPress={() => addExerciseToWorkout(exercise.id)}
-                  accessibilityRole="button"
-                  accessibilityLabel={alreadyAdded ? `Adicionar serie em ${exercise.name}` : `Adicionar ${exercise.name}`}
-                >
-                  <Plus size={18} color={alreadyAdded ? colors.muted : colors.primary} />
-                  {alreadyAdded && <Text style={styles.addedExerciseText}>Serie</Text>}
-                </Pressable>
+                <View style={styles.libraryActions}>
+                  <Pressable
+                    style={styles.favoriteButton}
+                    onPress={() => toggleFavoriteExercise(exercise.id)}
+                    accessibilityRole="button"
+                    accessibilityLabel={isFavorite ? `Remover ${exercise.name} dos favoritos` : `Favoritar ${exercise.name}`}
+                  >
+                    <Heart
+                      size={17}
+                      color={isFavorite ? colors.secondary : colors.primary}
+                      fill={isFavorite ? colors.secondary : 'transparent'}
+                    />
+                  </Pressable>
+                  <Pressable
+                    style={[styles.addExerciseButton, alreadyAdded && styles.addedExerciseButton]}
+                    onPress={() => addExerciseToWorkout(exercise.id)}
+                    accessibilityRole="button"
+                    accessibilityLabel={alreadyAdded ? `Adicionar serie em ${exercise.name}` : `Adicionar ${exercise.name}`}
+                  >
+                    <Plus size={18} color={alreadyAdded ? colors.muted : colors.primary} />
+                    {alreadyAdded && <Text style={styles.addedExerciseText}>Serie</Text>}
+                  </Pressable>
+                </View>
               )}
             </View>
           );
@@ -1756,6 +1850,33 @@ const styles = StyleSheet.create({
     borderRadius: radii.md,
     flexDirection: 'row',
     padding: 12,
+  },
+  libraryActions: {
+    alignItems: 'center',
+    gap: 7,
+  },
+  favoriteButton: {
+    alignItems: 'center',
+    backgroundColor: colors.secondarySoft,
+    borderRadius: radii.md,
+    height: 36,
+    justifyContent: 'center',
+    width: 36,
+  },
+  librarySignals: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 6,
+  },
+  librarySignal: {
+    backgroundColor: colors.primarySoft,
+    borderRadius: radii.sm,
+    color: colors.primary,
+    fontSize: 11,
+    fontWeight: '800',
+    paddingHorizontal: 7,
+    paddingVertical: 3,
   },
   libraryBody: {
     flex: 1,

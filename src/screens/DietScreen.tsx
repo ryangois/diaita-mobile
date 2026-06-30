@@ -1,10 +1,10 @@
-import { Apple, Check, ChevronDown, ChevronUp, Minus, Pencil, Plus, Save, Search, Trash2, Utensils, X } from 'lucide-react-native';
+import { Apple, Barcode, Check, ChevronDown, ChevronUp, Copy, Minus, Pencil, Plus, Save, Search, Trash2, Utensils, X } from 'lucide-react-native';
 import { useEffect, useMemo, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { SectionTitle } from '../components/SectionTitle';
 import { colors, radii } from '../styles/theme';
-import type { Food, Meal, UserProfile } from '../types';
+import type { Food, Meal, MealTemplate, NutritionUnit, UserProfile } from '../types';
 import {
   calculateMealItemNutrition,
   calculateMealTotals,
@@ -15,25 +15,44 @@ type DietScreenProps = {
   foods: Food[];
   isLoaded: boolean;
   meals: Meal[];
+  mealTemplates: MealTemplate[];
   profile: UserProfile;
   onFoodsChange: (foods: Food[]) => void;
   onMealsChange: (meals: Meal[]) => void;
+  onMealTemplatesChange: (templates: MealTemplate[]) => void;
 };
 
-export function DietScreen({ foods, isLoaded, meals, onFoodsChange, onMealsChange, profile }: DietScreenProps) {
+export function DietScreen({
+  foods,
+  isLoaded,
+  meals,
+  mealTemplates,
+  onFoodsChange,
+  onMealTemplatesChange,
+  onMealsChange,
+  profile,
+}: DietScreenProps) {
   const [selectedMealId, setSelectedMealId] = useState(meals[0]?.id ?? 'breakfast');
   const [selectedCategory, setSelectedCategory] = useState('Todos');
   const [foodSearch, setFoodSearch] = useState('');
   const [showManualFoodForm, setShowManualFoodForm] = useState(false);
   const [editingMealId, setEditingMealId] = useState<string | null>(null);
   const [mealNameDraft, setMealNameDraft] = useState('');
+  const [mealTimeDraft, setMealTimeDraft] = useState('');
+  const [barcodeDraft, setBarcodeDraft] = useState('');
+  const [isBarcodeLoading, setIsBarcodeLoading] = useState(false);
   const [lastAction, setLastAction] = useState('Dados sincronizados localmente.');
   const [draftFood, setDraftFood] = useState({
     name: '',
+    category: 'Manual',
     caloriesPer100g: '100',
     proteinPer100g: '10',
     carbsPer100g: '10',
     fatPer100g: '3',
+    servingAmount: '100',
+    servingGrams: '100',
+    servingLabel: '100g',
+    servingUnit: 'g' as NutritionUnit,
   });
 
   const mealsWithTotals = useMemo(
@@ -74,6 +93,7 @@ export function DietScreen({ foods, isLoaded, meals, onFoodsChange, onMealsChang
     const newMeal: Meal = {
       id: `meal-${Date.now()}`,
       name: `Refeicao ${mealNumber}`,
+      time: '',
       items: [],
     };
 
@@ -85,11 +105,13 @@ export function DietScreen({ foods, isLoaded, meals, onFoodsChange, onMealsChang
   function startEditingMeal(meal: Meal) {
     setEditingMealId(meal.id);
     setMealNameDraft(meal.name);
+    setMealTimeDraft(meal.time ?? '');
   }
 
   function cancelEditingMeal() {
     setEditingMealId(null);
     setMealNameDraft('');
+    setMealTimeDraft('');
   }
 
   function saveMealName(mealId: string) {
@@ -99,10 +121,102 @@ export function DietScreen({ foods, isLoaded, meals, onFoodsChange, onMealsChang
       return;
     }
 
-    onMealsChange(meals.map((meal) => (meal.id === mealId ? { ...meal, name: mealName } : meal)));
+    onMealsChange(
+      meals.map((meal) => (meal.id === mealId ? { ...meal, name: mealName, time: mealTimeDraft.trim() } : meal)),
+    );
     setEditingMealId(null);
     setMealNameDraft('');
     setLastAction(`Refeicao renomeada para ${mealName}.`);
+  }
+
+  function saveMealAsTemplate(meal: Meal) {
+    if (meal.items.length === 0) {
+      setLastAction('Adicione alimentos antes de salvar um modelo.');
+      return;
+    }
+
+    const template: MealTemplate = {
+      id: `template-${Date.now()}`,
+      name: meal.name,
+      items: meal.items.map((item) => ({ ...item, id: `template-item-${Date.now()}-${item.id}` })),
+    };
+
+    onMealTemplatesChange([template, ...mealTemplates]);
+    setLastAction(`${meal.name} salva como modelo.`);
+  }
+
+  function applyMealTemplate(template: MealTemplate) {
+    if (!selectedMeal) {
+      return;
+    }
+
+    onMealsChange(
+      meals.map((meal) =>
+        meal.id === selectedMeal.id
+          ? {
+              ...meal,
+              items: [
+                ...meal.items,
+                ...template.items.map((item) => ({
+                  ...item,
+                  id: `${meal.id}-${item.foodId}-${Date.now()}-${item.id}`,
+                })),
+              ],
+            }
+          : meal,
+      ),
+    );
+    setLastAction(`${template.name} aplicado em ${selectedMeal.name}.`);
+  }
+
+  async function fetchFoodByBarcode() {
+    const barcode = barcodeDraft.trim();
+
+    if (!barcode) {
+      return;
+    }
+
+    setIsBarcodeLoading(true);
+    try {
+      const response = await fetch(
+        `https://world.openfoodfacts.org/api/v2/product/${barcode}?fields=product_name,categories,nutriments,serving_quantity,serving_size`,
+      );
+      const payload = await response.json();
+      const product = payload.product;
+
+      if (!product || payload.status === 0) {
+        setLastAction('Produto nao encontrado na base Open Food Facts.');
+        return;
+      }
+
+      const nutriments = product.nutriments ?? {};
+      const servingGrams = readNumber(String(product.serving_quantity ?? '100')) || 100;
+      const foodName = String(product.product_name || `Produto ${barcode}`).trim();
+      const newFood: Food = {
+        id: `barcode-${barcode}-${Date.now()}`,
+        name: foodName,
+        category: String(product.categories || 'Barcode').split(',')[0] || 'Barcode',
+        barcode,
+        caloriesPer100g: Math.round(readNumber(String(nutriments['energy-kcal_100g'] ?? nutriments['energy-kcal'] ?? '0'))),
+        proteinPer100g: readNumber(String(nutriments.proteins_100g ?? '0')),
+        carbsPer100g: readNumber(String(nutriments.carbohydrates_100g ?? '0')),
+        fatPer100g: readNumber(String(nutriments.fat_100g ?? '0')),
+        defaultServing: {
+          unit: 'g',
+          amount: servingGrams,
+          grams: servingGrams,
+          label: product.serving_size ? String(product.serving_size) : `${servingGrams}g`,
+        },
+      };
+
+      onFoodsChange([...foods, newFood]);
+      setBarcodeDraft('');
+      setLastAction(`${newFood.name} importado do Open Food Facts.`);
+    } catch {
+      setLastAction('Nao foi possivel buscar o produto agora.');
+    } finally {
+      setIsBarcodeLoading(false);
+    }
   }
 
   function askDeleteMeal(meal: Meal) {
@@ -223,16 +337,16 @@ export function DietScreen({ foods, isLoaded, meals, onFoodsChange, onMealsChang
     const newFood: Food = {
       id: `custom-${foodName.toLowerCase().replace(/\s+/g, '-')}-${Date.now()}`,
       name: foodName,
-      category: 'Manual',
+      category: draftFood.category.trim() || 'Manual',
       caloriesPer100g: readNumber(draftFood.caloriesPer100g),
       proteinPer100g: readNumber(draftFood.proteinPer100g),
       carbsPer100g: readNumber(draftFood.carbsPer100g),
       fatPer100g: readNumber(draftFood.fatPer100g),
       defaultServing: {
-        unit: 'g',
-        amount: 100,
-        grams: 100,
-        label: '100g',
+        unit: draftFood.servingUnit,
+        amount: Math.max(1, readNumber(draftFood.servingAmount)),
+        grams: Math.max(1, readNumber(draftFood.servingGrams)),
+        label: draftFood.servingLabel.trim() || `${draftFood.servingAmount}${draftFood.servingUnit}`,
       },
     };
 
@@ -306,15 +420,28 @@ export function DietScreen({ foods, isLoaded, meals, onFoodsChange, onMealsChang
             </View>
             <View style={styles.listBody}>
               {editingMealId === meal.id ? (
-                <TextInput
-                  autoFocus
-                  style={styles.mealNameInput}
-                  value={mealNameDraft}
-                  onChangeText={setMealNameDraft}
-                  onSubmitEditing={() => saveMealName(meal.id)}
-                />
+                <View style={styles.mealEditStack}>
+                  <TextInput
+                    autoFocus
+                    style={styles.mealNameInput}
+                    value={mealNameDraft}
+                    onChangeText={setMealNameDraft}
+                    onSubmitEditing={() => saveMealName(meal.id)}
+                  />
+                  <TextInput
+                    style={styles.mealNameInput}
+                    placeholder="Horario, ex: 12:30"
+                    placeholderTextColor={colors.muted}
+                    value={mealTimeDraft}
+                    onChangeText={setMealTimeDraft}
+                    onSubmitEditing={() => saveMealName(meal.id)}
+                  />
+                </View>
               ) : (
-                <Text style={styles.cardTitle}>{meal.name}</Text>
+                <>
+                  <Text style={styles.cardTitle}>{meal.name}</Text>
+                  {!!meal.time && <Text style={styles.foodServingHint}>{meal.time}</Text>}
+                </>
               )}
               <Text style={styles.cardText}>
                 {meal.totals.protein}g prot - {meal.totals.carbs}g carb - {meal.totals.fat}g gord
@@ -358,6 +485,14 @@ export function DietScreen({ foods, isLoaded, meals, onFoodsChange, onMealsChang
                     accessibilityLabel={`Apagar ${meal.name}`}
                   >
                     <Trash2 size={15} color={colors.secondary} />
+                  </Pressable>
+                  <Pressable
+                    style={styles.mealActionButton}
+                    onPress={() => saveMealAsTemplate(meal)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Salvar ${meal.name} como modelo`}
+                  >
+                    <Copy size={15} color={colors.primary} />
                   </Pressable>
                 </View>
               )}
@@ -409,6 +544,28 @@ export function DietScreen({ foods, isLoaded, meals, onFoodsChange, onMealsChang
         </View>
       ))}
 
+      <SectionTitle title="Modelos de refeicao" />
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.templateChips}>
+        {mealTemplates.map((template) => (
+          <Pressable
+            key={template.id}
+            style={styles.templateChip}
+            onPress={() => applyMealTemplate(template)}
+            accessibilityRole="button"
+            accessibilityLabel={`Aplicar modelo ${template.name}`}
+          >
+            <Text style={styles.templateChipTitle}>{template.name}</Text>
+            <Text style={styles.templateChipText}>{template.items.length} itens</Text>
+          </Pressable>
+        ))}
+        {mealTemplates.length === 0 && (
+          <View style={styles.emptySearch}>
+            <Text style={styles.cardTitle}>Nenhum modelo salvo</Text>
+            <Text style={styles.cardText}>Use o botao de copiar em uma refeicao para salvar um modelo.</Text>
+          </View>
+        )}
+      </ScrollView>
+
       <SectionTitle title="Adicionar alimento" />
       <View style={styles.addFoodPanel}>
         <View>
@@ -426,6 +583,20 @@ export function DietScreen({ foods, isLoaded, meals, onFoodsChange, onMealsChang
           value={foodSearch}
           onChangeText={setFoodSearch}
         />
+      </View>
+      <View style={styles.barcodePanel}>
+        <Barcode size={20} color={colors.primary} />
+        <TextInput
+          keyboardType="numeric"
+          style={styles.searchInput}
+          placeholder="Codigo de barras"
+          placeholderTextColor={colors.muted}
+          value={barcodeDraft}
+          onChangeText={setBarcodeDraft}
+        />
+        <Pressable style={styles.barcodeButton} onPress={fetchFoodByBarcode}>
+          <Text style={styles.barcodeButtonText}>{isBarcodeLoading ? '...' : 'Buscar'}</Text>
+        </Pressable>
       </View>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryChips}>
         {foodCategories.map((category) => {
@@ -466,6 +637,13 @@ export function DietScreen({ foods, isLoaded, meals, onFoodsChange, onMealsChang
             value={draftFood.name}
             onChangeText={(name) => setDraftFood((current) => ({ ...current, name }))}
           />
+          <TextInput
+            style={[styles.textInput, styles.spacedInput]}
+            placeholder="Categoria"
+            placeholderTextColor={colors.muted}
+            value={draftFood.category}
+            onChangeText={(category) => setDraftFood((current) => ({ ...current, category }))}
+          />
           <View style={styles.inputGrid}>
             <MacroInput
               label="kcal"
@@ -491,6 +669,40 @@ export function DietScreen({ foods, isLoaded, meals, onFoodsChange, onMealsChang
               value={draftFood.fatPer100g}
               onChangeText={(fatPer100g) => setDraftFood((current) => ({ ...current, fatPer100g }))}
             />
+          </View>
+          <View style={styles.inputGrid}>
+            <MacroInput
+              label="porcao"
+              value={draftFood.servingAmount}
+              onChangeText={(servingAmount) =>
+                setDraftFood((current) => ({ ...current, servingAmount }))
+              }
+            />
+            <MacroInput
+              label="gramas"
+              value={draftFood.servingGrams}
+              onChangeText={(servingGrams) => setDraftFood((current) => ({ ...current, servingGrams }))}
+            />
+            <MacroInput
+              label="rotulo"
+              value={draftFood.servingLabel}
+              onChangeText={(servingLabel) => setDraftFood((current) => ({ ...current, servingLabel }))}
+            />
+          </View>
+          <View style={styles.unitRow}>
+            {(['g', 'unit', 'portion'] as NutritionUnit[]).map((unit) => {
+              const isActive = draftFood.servingUnit === unit;
+
+              return (
+                <Pressable
+                  key={unit}
+                  style={[styles.unitChip, isActive && styles.activeUnitChip]}
+                  onPress={() => setDraftFood((current) => ({ ...current, servingUnit: unit }))}
+                >
+                  <Text style={[styles.unitChipText, isActive && styles.activeUnitChipText]}>{unit}</Text>
+                </Pressable>
+              );
+            })}
           </View>
           <Pressable style={styles.createFoodButton} onPress={createManualFood}>
             <Plus size={18} color={colors.surface} />
@@ -743,6 +955,9 @@ const styles = StyleSheet.create({
     minHeight: 36,
     paddingHorizontal: 10,
   },
+  mealEditStack: {
+    gap: 7,
+  },
   foodIcon: {
     alignItems: 'center',
     backgroundColor: colors.secondarySoft,
@@ -893,6 +1108,49 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 14,
   },
+  barcodePanel: {
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderRadius: radii.md,
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 10,
+    minHeight: 46,
+    paddingHorizontal: 12,
+  },
+  barcodeButton: {
+    backgroundColor: colors.primary,
+    borderRadius: radii.sm,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+  },
+  barcodeButtonText: {
+    color: colors.surface,
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  templateChips: {
+    gap: 8,
+    paddingRight: 20,
+  },
+  templateChip: {
+    backgroundColor: colors.surface,
+    borderRadius: radii.md,
+    minHeight: 60,
+    padding: 12,
+    width: 150,
+  },
+  templateChipTitle: {
+    color: colors.primary,
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  templateChipText: {
+    color: colors.muted,
+    fontSize: 12,
+    fontWeight: '700',
+    marginTop: 4,
+  },
   categoryChips: {
     gap: 8,
     marginBottom: 10,
@@ -923,6 +1181,9 @@ const styles = StyleSheet.create({
     fontSize: 14,
     minHeight: 42,
     paddingHorizontal: 12,
+  },
+  spacedInput: {
+    marginTop: 8,
   },
   inputGrid: {
     flexDirection: 'row',
@@ -965,6 +1226,28 @@ const styles = StyleSheet.create({
     color: colors.surface,
     fontSize: 14,
     fontWeight: '800',
+  },
+  unitRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 10,
+  },
+  unitChip: {
+    backgroundColor: colors.background,
+    borderRadius: radii.sm,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  activeUnitChip: {
+    backgroundColor: colors.primary,
+  },
+  unitChipText: {
+    color: colors.primary,
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  activeUnitChipText: {
+    color: colors.surface,
   },
   libraryCard: {
     alignItems: 'center',

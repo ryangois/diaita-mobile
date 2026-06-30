@@ -259,6 +259,41 @@ Formula basica de volume:
 volume = series * repeticoes * carga
 ```
 
+## 11. Rodar como app celular
+
+Teste rapido no celular:
+
+```bash
+npx expo start
+```
+
+Depois abra o QR Code no Expo Go.
+
+Build Android de teste:
+
+```bash
+npm install -g eas-cli
+eas login
+eas build:configure
+npm run build:android -- --profile preview
+```
+
+Build para lojas:
+
+```bash
+npm run build:android -- --profile production
+npm run build:ios -- --profile production
+```
+
+Antes de publicar, revisar:
+
+- icone em `assets/icon.png`;
+- splash e adaptive icon no `app.json`;
+- nome final `Diaita`;
+- permissao de camera quando o scanner real com `expo-camera` for instalado;
+- conta Apple Developer para TestFlight;
+- conta Google Play Console para APK/AAB.
+
 Depois, adicionar:
 
 - Volume por grupo muscular.
